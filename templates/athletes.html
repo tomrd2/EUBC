@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Athlete Management</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include "_header.html" %}
+  <h2>Add New Athlete</h2>
+  <form action="/add" method="post">
+    <input type="number" name="Athlete_ID" placeholder="Athlete ID" required>
+    <input type="text" name="Full_Name" placeholder="Name" required>
+    <input type="text" name="Initials" placeholder="Initials" maxlength="4" required>
+    <select name="M_W">
+      <option value="M">M</option>
+      <option value="W">W</option>
+    </select>
+    <select name="Side">
+      <option value="Bow">Bow</option>
+      <option value="Stroke">Stroke</option>
+      <option value="Both">Both</option>
+    </select>
+    <label>
+      <input type="checkbox" name="Sculls" value="1">
+      Sculls
+    </label>
+    <label>
+      <input type="checkbox" name="Cox" value="0">
+      Cox
+    </label>
+    <input type="date" name="Joined" required>
+    <input type="email" name="Email" placeholder="Email" required>
+    <button class="btn" type="submit">Add Athlete</button>
+  </form>
+
+  <h2>Current Athletes</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Name</th><th>Initials</th><th>Gender</th><th>Side</th>
+        <th>Sculls</th><th>Cox</th><th>Joined</th><th>Email</th><th>Edit</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      {% for athlete in athletes %}
+      <form action="/edit/{{ athlete.Athlete_ID }}" method="post">
+        <tr>
+          <td>{{ athlete.Athlete_ID }}</td>
+          <td><input type="text" name="Full_Name" value="{{ athlete.Full_Name }}"></td>
+          <td><input type="text" name="Initials" value="{{ athlete.Initials }}" maxlength="4" size="4"></td>
+          <td><input type="text" name="M_W" value="{{ athlete.M_W }}" maxlength="1" size="1"></td>
+          <td><input type="text" name="Side" value="{{ athlete.Side }}" maxlength="6" size="6"></td>
+          <td>
+            <input type="checkbox" name="Sculls" value="1" {% if athlete.Sculls %}checked{% endif %}>
+          </td>
+          
+          <td>
+            <input type="checkbox" name="Cox" value="1" {% if athlete.Cox %}checked{% endif %}>
+          </td>
+          
+          <td><input type="date" name="Joined" value="{{ athlete.Joined }}"></td>
+          <td><input type="email" name="Email" value="{{ athlete.Email }}"></td>
+          <td><button class="btn" type="submit">Save</button></td>
+        </tr>
+      </form>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
+

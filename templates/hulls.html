@@ -5,12 +5,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header>
-    <a href="{{ url_for('coach_home') }}">
-      <img src="{{ url_for('static', filename='EUBC_Logo.png') }}" alt="Logo">
-    </a>
-    <h1>Hulls</h1>
-  </header>
+  {% include "_header.html" %}
   <form action="/add_hull" method="post">
     <input type="number" name="Hull_ID" placeholder="Hull ID" required>
     <input type="text" name="Hull_Name" placeholder="Hull Name" required>

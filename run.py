@@ -60,12 +60,12 @@ def login():
 
     return render_template('login.html')
 
-@app.route('/coach_home')
+@app.route('/')
 @login_required
 def coach_home():
     if not current_user.coach:
         return render_template('athlete_home.html', user=current_user)
-    return render_template('coach_home.html', user=current_user)
+    return render_template('index.html', user=current_user)
 
 @app.route('/athlete_home')
 @login_required
@@ -86,10 +86,10 @@ def get_db_connection():
 def athletes():
     conn = get_db_connection()
     with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM Athletes")
+        cursor.execute("SELECT * FROM Athletes where Coach IS NULL")
         data = cursor.fetchall()
     conn.close()
-    return render_template('index.html', athletes=data)
+    return render_template('athletes.html', athletes=data)
 
 @app.route('/add', methods=['POST'])
 def add_athlete():
@@ -170,6 +170,17 @@ def edit_hull(hull_id):
         conn.commit()
     conn.close()
     return redirect(url_for('hulls'))
+
+@app.before_request
+def require_login():
+    # Allow access to login page and static files without being logged in
+    allowed_routes = ['login', 'static']
+
+    if request.endpoint is None:
+        return
+
+    if request.endpoint not in allowed_routes and not current_user.is_authenticated:
+        return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
