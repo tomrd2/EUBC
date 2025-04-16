@@ -1,18 +1,23 @@
-from flask import Blueprint, render_template, request, redirect, url_for
-from your_db_utils import get_db_connection  # if you have a shared DB function
+from flask import Blueprint, Flask, render_template, request, redirect, url_for, session
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+import datetime
+import pymysql
+from db import get_db_connection
 
-athletes_bp = Blueprint('athletes', __name__, url_prefix='/athletes')
+athletes_bp = Blueprint('athletes', __name__)
 
-@app.route('/athletes')
+# Athletes Page
+@athletes_bp.route('/athletes')
 def athletes():
     conn = get_db_connection()
     with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM Athletes where coach <> 1")
+        cursor.execute("SELECT * FROM Athletes where Coach IS NULL")
         data = cursor.fetchall()
     conn.close()
     return render_template('athletes.html', athletes=data)
 
-@app.route('/add', methods=['POST'])
+@athletes_bp.route('/add', methods=['POST'])
 def add_athlete():
     data = request.form
     sculls_value = 1 if 'Sculls' in data else 0
@@ -31,7 +36,7 @@ def add_athlete():
     conn.close()
     return redirect(url_for('athletes'))
 
-@app.route('/edit/<int:athlete_id>', methods=['POST'])
+@athletes_bp.route('/edit/<int:athlete_id>', methods=['POST'])
 def edit_athlete(athlete_id):
     data = request.form
     sculls_value = 1 if 'Sculls' in data else 0
