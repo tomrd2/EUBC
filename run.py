@@ -1,9 +1,16 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 import pymysql
 import datetime
 
 app = Flask(__name__)
-app.secret_key = "72c26493ac0fcd6849b76f0069d1384d"  # Replace with a secure value
+app.secret_key = "72c26493ac0fcd6849b76f0069d1384d"
+
+# Flask-Login setup
+login_manager = LoginManager()
+login_manager.login_view = 'login'
+login_manager.init_app(app)
 
 # MySQL Config
 db_config = {
@@ -14,13 +21,65 @@ db_config = {
     'cursorclass': pymysql.cursors.DictCursor  # So we can use dict-style access
 }
 
+class User(UserMixin):
+    def __init__(self, athlete_data):
+        self.id = athlete_data['Athlete_ID']
+        self.name = athlete_data['Full_Name']
+        self.email = athlete_data['Email']
+        self.coach = athlete_data['Coach']
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT * FROM Athletes WHERE Athlete_ID = %s", (user_id,))
+        user = cursor.fetchone()
+    conn.close()
+    return User(user) if user else None
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM Athletes WHERE Email = %s", (email,))
+            user = cursor.fetchone()
+        conn.close()
+
+        if user and check_password_hash(user['Password_Hash'], password):
+            login_user(User(user))
+            if user['Coach']:
+                return redirect(url_for('coach_home'))
+            else:
+                return redirect(url_for('athlete_home'))
+        else:
+            return "Invalid credentials", 401
+
+    return render_template('login.html')
+
+@app.route('/coach_home')
+@login_required
+def coach_home():
+    if not current_user.coach:
+        return render_template('athlete_home.html', user=current_user)
+    return render_template('coach_home.html', user=current_user)
+
+@app.route('/athlete_home')
+@login_required
+def athlete_home():
+    return render_template('athlete_home.html', user=current_user)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 def get_db_connection():
     return pymysql.connect(**db_config)
-
-# Home Page
-@app.route('/')
-def home():
-    return render_template('home.html')
 
 # Athletes Page
 @app.route('/athletes')
@@ -73,6 +132,8 @@ def edit_athlete(athlete_id):
 # Hulls Page
 @app.route('/hulls')
 def hulls():
+    if not current_user.coach:
+        return render_template('athlete_home.html', user=current_user)
     conn = get_db_connection()
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM Hulls")
