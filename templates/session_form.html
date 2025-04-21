@@ -38,7 +38,7 @@
 
     <label for="activity">Activity:</label>
     <select name="activity" required>
-      {% set activity_list = ['Erg', 'Bike', 'Run', 'Other'] %}
+      {% set activity_list = ['Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike','Brisk Walk' 'Other'] %}
       {% for option in activity_list %}
         <option value="{{ option }}"
           {% if session and session.Activity == option %}selected{% endif %}>{{ option }}</option>
@@ -56,7 +56,7 @@
 
     <label for="type">Type:</label>
     <select name="type" required>
-      {% set type_list = ['Test', 'Intervals', 'UT2', 'Cross-Training', 'Other'] %}
+      {% set type_list = ['Test', 'Intervals', 'UT2', 'UT1', 'Cross-Training', 'Other'] %}
       {% for option in type_list %}
         <option value="{{ option }}"
           {% if session and session.Type == option %}selected{% endif %}>{{ option }}</option>
