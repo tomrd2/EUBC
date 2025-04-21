@@ -6,12 +6,14 @@ import pymysql
 from db import get_db_connection
 from routes.athletes import athletes_bp
 from routes.hulls import hulls_bp
+from routes.sessions import sessions_bp
 
 app = Flask(__name__)
 app.secret_key = "72c26493ac0fcd6849b76f0069d1384d"
 
 app.register_blueprint(athletes_bp)
 app.register_blueprint(hulls_bp)
+app.register_blueprint(sessions_bp)
 
 # Flask-Login setup
 login_manager = LoginManager()

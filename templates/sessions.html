@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Training Sessions</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header style="display: flex; justify-content: space-between; align-items: center; background-color: #001f3f; color: white; padding: 10px 20px; border-radius: 8px;">
+    <div style="display: flex; align-items: center;">
+      <a href="{{ url_for('coach_home') if current_user.coach else url_for('athlete_home') }}">
+        <img src="{{ url_for('static', filename='EUBC_Logo.png') }}" alt="Logo" style="height: 50px; margin-right: 20px;">
+      </a>
+      <h1 style="margin: 0;">EUBC Data</h1>
+    </div>
+    <div style="text-align: right;">
+      Logged in as <strong>{{ current_user.name }}</strong> |
+      <a href="{{ url_for('logout') }}" style="color: white; text-decoration: underline;">Logout</a>
+    </div>
+  </header>
+
+  <h2>Training Sessions</h2>
+
+  {% if current_user.coach %}
+    <form method="GET">
+        <select name="athlete_id">
+            <option value="">-- All Athletes --</option>
+            {% for a in athletes %}
+              <option value="{{ a.Athlete_ID }}"
+                {% if selected_athlete == a.Athlete_ID|string %}selected{% endif %}>
+                {{ a.Full_Name }}
+              </option>
+            {% endfor %}
+          </select>
+      <input type="text" name="activity" placeholder="Filter by Activity">
+      <input type="text" name="type" placeholder="Filter by Type">
+      <button class="btn" type="submit">Filter</button>
+    </form>
+    <a class="btn" href="{{ url_for('sessions.add_session') }}">Add New Session</a>
+  {% else %}
+    <a class="btn" href="{{ url_for('sessions.add_session') }}">Log New Session</a>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Activity</th><th>Duration</th><th>Distance</th><th>Split</th><th>Type</th><th>Weight</th><th>Comment</th>
+        {% if current_user.coach %}<th>Athlete</th><th>Actions</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sessions %}
+      <tr>
+        <td>{{ s.Session_Date }}</td>
+        <td>{{ s.Activity }}</td>
+        <td>{{ s.Duration }}</td>
+        <td>{{ s.Distance }}</td>
+        <td>{{ s.Split }}</td>
+        <td>{{ s.Type }}</td>
+        <td>{{ s.Weight }}</td>
+        <td>{{ s.Comment }}</td>
+        {% if current_user.coach %}
+        <td>{{ s.Full_Name }}</td>
+        <td><a href="{{ url_for('sessions.edit_session', session_id=s.Session_ID) }}">Edit</a></td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

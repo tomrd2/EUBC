@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ session and "Edit Session" or "New Session" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header style="display: flex; justify-content: space-between; align-items: center; background-color: #001f3f; color: white; padding: 10px 20px; border-radius: 8px;">
+    <div style="display: flex; align-items: center;">
+      <a href="{{ url_for('coach_home') if current_user.coach else url_for('athlete_home') }}">
+        <img src="{{ url_for('static', filename='EUBC_Logo.png') }}" alt="Logo" style="height: 50px; margin-right: 20px;">
+      </a>
+      <h1 style="margin: 0;">EUBC Data</h1>
+    </div>
+    <div style="text-align: right;">
+      Logged in as <strong>{{ current_user.name }}</strong> |
+      <a href="{{ url_for('logout') }}" style="color: white; text-decoration: underline;">Logout</a>
+    </div>
+  </header>
+
+  <h2>{{ session and "Edit Session" or "New Session" }}</h2>
+  <form method="POST">
+    {% if is_coach %}
+    <label for="athlete_id">Athlete:</label>
+    <select name="athlete_id" required>
+      <option value="">-- Select Athlete --</option>
+      {% for athlete in athletes %}
+        <option value="{{ athlete.Athlete_ID }}"
+          {% if session and session.Athlete_ID == athlete.Athlete_ID %}selected{% endif %}>
+          {{ athlete.Full_Name }}
+        </option>
+      {% endfor %}
+    </select>
+  {% endif %}
+
+    <label>Date:</label>
+    <input type="date" name="session_date" value="{{ session.Session_Date if session else '' }}" required>
+
+    <label for="activity">Activity:</label>
+    <select name="activity" required>
+      {% set activity_list = ['Erg', 'Bike', 'Run', 'Other'] %}
+      {% for option in activity_list %}
+        <option value="{{ option }}"
+          {% if session and session.Activity == option %}selected{% endif %}>{{ option }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Duration:</label>
+    <input type="time" name="duration" value="{{ session.Duration if session else '' }}">
+
+    <label>Distance (m):</label>
+    <input type="number" name="distance" value="{{ session.Distance if session else '' }}">
+
+    <label>Split Time:</label>
+    <input type="time" name="split" value="{{ session.Split if session else '' }}">
+
+    <label for="type">Type:</label>
+    <select name="type" required>
+      {% set type_list = ['Test', 'Intervals', 'UT2', 'Cross-Training', 'Other'] %}
+      {% for option in type_list %}
+        <option value="{{ option }}"
+          {% if session and session.Type == option %}selected{% endif %}>{{ option }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Weight (kg):</label>
+    <input type="number" step="0.1" name="weight" value="{{ session.Weight if session else '' }}">
+
+    <label>Comment:</label>
+    <textarea name="comment">{{ session.Comment if session else '' }}</textarea>
+
+    <button class="btn" type="submit">Save</button>
+  </form>
+</body>
+</html>
