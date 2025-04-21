@@ -20,21 +20,44 @@
 
   <h2>Training Sessions</h2>
 
+  <form method="GET" action="{{ url_for('sessions.sessions') }}">
+    {% if current_user.coach %}
+      <label for="athlete_id">Athlete:</label>
+      <select name="athlete_id">
+        <option value="">-- All Athletes --</option>
+        {% for a in athletes %}
+          <option value="{{ a.Athlete_ID }}"
+            {% if selected_athlete == a.Athlete_ID|string %}selected{% endif %}>
+            {{ a.Full_Name }}
+          </option>
+        {% endfor %}
+      </select>
+    {% endif %}
+  
+    <label for="activity">Activity:</label>
+    <select name="activity">
+      <option value="">-- All Activities --</option>
+      {% for act in ['Erg', 'Bike', 'Run', 'Other'] %}
+        <option value="{{ act }}" {% if selected_activity == act %}selected{% endif %}>{{ act }}</option>
+      {% endfor %}
+    </select>
+  
+    <label for="type">Type:</label>
+    <select name="type">
+      <option value="">-- All Types --</option>
+      {% for typ in ['Test', 'Intervals', 'UT2', 'Cross-Training', 'Other'] %}
+        <option value="{{ typ }}" {% if selected_type == typ %}selected{% endif %}>{{ typ }}</option>
+      {% endfor %}
+    </select>
+  
+    <button class="btn" type="submit">Filter</button>
+  
+    {% if current_user.coach or not current_user.coach %}
+      <button class="btn" type="submit" formaction="{{ url_for('sessions.download_sessions_csv') }}">Download CSV</button>
+    {% endif %}
+  </form>
+  
   {% if current_user.coach %}
-    <form method="GET">
-        <select name="athlete_id">
-            <option value="">-- All Athletes --</option>
-            {% for a in athletes %}
-              <option value="{{ a.Athlete_ID }}"
-                {% if selected_athlete == a.Athlete_ID|string %}selected{% endif %}>
-                {{ a.Full_Name }}
-              </option>
-            {% endfor %}
-          </select>
-      <input type="text" name="activity" placeholder="Filter by Activity">
-      <input type="text" name="type" placeholder="Filter by Type">
-      <button class="btn" type="submit">Filter</button>
-    </form>
     <a class="btn" href="{{ url_for('sessions.add_session') }}">Add New Session</a>
   {% else %}
     <a class="btn" href="{{ url_for('sessions.add_session') }}">Log New Session</a>

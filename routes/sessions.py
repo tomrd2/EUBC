@@ -1,6 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, session, Response
 from flask_login import login_required, current_user
 from db import get_db_connection
+from io import StringIO
+import csv
 
 sessions_bp = Blueprint('sessions', __name__)
 
@@ -10,23 +12,34 @@ def sessions():
     conn = get_db_connection()
     with conn.cursor() as cursor:
         athlete_list = []
+        filters = []
+        query = """
+            SELECT s.*, a.Full_Name
+            FROM Sessions s
+            JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID
+            WHERE 1=1
+        """
+
         if current_user.coach:
-            query = "SELECT s.*, a.Full_Name FROM Sessions s JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID WHERE 1=1 AND Coach IS NULL"
-            filters = []
             if 'athlete_id' in request.args and request.args['athlete_id']:
                 query += " AND s.Athlete_ID = %s"
                 filters.append(request.args['athlete_id'])
-            if 'activity' in request.args and request.args['activity']:
-                query += " AND s.Activity = %s"
-                filters.append(request.args['activity'])
-            if 'type' in request.args and request.args['type']:
-                query += " AND s.Type = %s"
-                filters.append(request.args['type'])
-            cursor.execute(query, filters)
         else:
-            cursor.execute("""SELECT s.*, a.Full_Name FROM Sessions s JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID WHERE s.Athlete_ID = %s""", (current_user.id,))
+            query += " AND s.Athlete_ID = %s"
+            filters.append(current_user.id)
+
+        if 'activity' in request.args and request.args['activity']:
+            query += " AND s.Activity = %s"
+            filters.append(request.args['activity'])
+
+        if 'type' in request.args and request.args['type']:
+            query += " AND s.Type = %s"
+            filters.append(request.args['type'])
+
+        query += " ORDER BY s.Session_Date DESC"
+        cursor.execute(query, filters)
         session_data = cursor.fetchall()
-        
+
         if current_user.coach:
             cursor.execute("SELECT Athlete_ID, Full_Name FROM Athletes ORDER BY Full_Name ASC")
             athlete_list = cursor.fetchall()
@@ -39,7 +52,8 @@ def sessions():
         athletes=athlete_list,
         selected_athlete=request.args.get('athlete_id', ''),
         selected_activity=request.args.get('activity', ''),
-        selected_type=request.args.get('type', ''))
+        selected_type=request.args.get('type', '')
+    )
 
 @sessions_bp.route('/sessions/new', methods=['GET', 'POST'])
 @login_required
@@ -72,6 +86,75 @@ def add_session():
         return redirect(url_for('sessions.sessions'))
 
     return render_template('session_form.html', is_coach=current_user.coach)
+
+@sessions_bp.route('/download_sessions_csv')
+@login_required
+def download_sessions_csv():
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        query = """
+            SELECT s.Session_ID, a.Full_Name, s.Session_Date, s.Activity, s.Duration, 
+                   s.Distance, s.Split, s.Type, s.Weight, s.Comment
+            FROM Sessions s
+            JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID
+            WHERE 1=1
+        """
+        filters = []
+        params = []
+
+        if current_user.coach:
+            athlete_id = request.args.get('athlete_id')
+        else:
+            athlete_id = current_user.id
+
+        activity = request.args.get('activity')
+        session_type = request.args.get('type')
+
+        if athlete_id:
+            query += " AND s.Athlete_ID = %s"
+            params.append(athlete_id)
+        if activity:
+            query += " AND s.Activity = %s"
+            params.append(activity)
+        if session_type:
+            query += " AND s.Type = %s"
+            params.append(session_type)
+
+        cursor.execute(query, params)
+        sessions = cursor.fetchall()
+
+    conn.close()
+
+    # Create CSV
+    si = StringIO()
+    cw = csv.writer(si)
+    # Write header
+    cw.writerow(['Session_ID', 'Full_Name', 'Session_Date', 'Activity', 'Duration',
+                 'Distance', 'Split', 'Type', 'Weight', 'Comment'])
+    # Write data rows
+    for session in sessions:
+        cw.writerow([
+            session['Session_ID'],
+            session['Full_Name'],
+            session['Session_Date'],
+            session['Activity'],
+            session['Duration'],
+            session['Distance'],
+            session['Split'],
+            session['Type'],
+            session['Weight'],
+            session['Comment']
+        ])
+
+    output = si.getvalue()
+    si.close()
+
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=sessions.csv"}
+    )
 
 @sessions_bp.route('/sessions/edit/<int:session_id>', methods=['GET', 'POST'])
 @login_required
