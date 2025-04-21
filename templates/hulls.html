@@ -7,11 +7,10 @@
 <body>
   {% include "_header.html" %}
   <form action="/add_hull" method="post">
-    <input type="number" name="Hull_ID" placeholder="Hull ID" required>
     <input type="text" name="Hull_Name" placeholder="Hull Name" required>
     <input type="text" name="Boat_Type" placeholder="Type (1x, 2x, 8+...)" maxlength="2" required>
     <input type="number" name="Max_Weight" placeholder="Max Weight">
-    <button type="submit">Add Hull</button>
+    <button class="btn" type="submit">Add Hull</button>
   </form>
 
   <table border="1">
@@ -28,7 +27,7 @@
           <td><input type="text" name="Hull_Name" value="{{ hull.Hull_Name }}"></td>
           <td><input type="text" name="Boat_Type" value="{{ hull.Boat_Type }}" maxlength="2" size="2"></td>
           <td><input type="number" name="Max_Weight" value="{{ hull.Max_Weight }}" maxlength="3" size="3"></td>
-          <td><button type="submit">Save</button></td>
+          <td><button class="btn" type="submit">Save</button></td>
         </form>
       </tr>
       {% endfor %}

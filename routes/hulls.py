@@ -25,14 +25,14 @@ def add_hull():
     conn = get_db_connection()
     with conn.cursor() as cursor:
         cursor.execute("""
-            INSERT INTO Hulls (Hull_ID, Hull_Name, Boat_Type, Max_Weight)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO Hulls (Hull_Name, Boat_Type, Max_Weight)
+            VALUES (%s, %s, %s)
         """, (
-            data['Hull_ID'], data['Hull_Name'], data['Boat_Type'], data['Max_Weight']
+            data['Hull_Name'], data['Boat_Type'], data['Max_Weight']
         ))
         conn.commit()
     conn.close()
-    return redirect(url_for('hulls'))
+    return redirect(url_for('hulls.hulls'))
 
 @hulls_bp.route('/edit_hull/<int:hull_id>', methods=['POST'])
 def edit_hull(hull_id):
@@ -47,4 +47,4 @@ def edit_hull(hull_id):
         ))
         conn.commit()
     conn.close()
-    return redirect(url_for('hulls'))
+    return redirect(url_for('hulls.hulls'))

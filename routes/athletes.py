@@ -26,15 +26,15 @@ def add_athlete():
     conn = get_db_connection()
     with conn.cursor() as cursor:
         cursor.execute("""
-            INSERT INTO Athletes (Athlete_ID, Full_Name, Initials, M_W, Side, Sculls, Cox, Joined, Email)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO Athletes (Full_Name, Initials, M_W, Side, Sculls, Cox, Joined, Email)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            data['Athlete_ID'], data['Full_Name'], data['Initials'], data['M_W'],
+            data['Full_Name'], data['Initials'], data['M_W'],
             data['Side'], sculls_value, cox_value, data['Joined'], data['Email']
         ))
         conn.commit()
     conn.close()
-    return redirect(url_for('athletes'))
+    return redirect(url_for('athletes.athletes'))
 
 @athletes_bp.route('/edit/<int:athlete_id>', methods=['POST'])
 def edit_athlete(athlete_id):
