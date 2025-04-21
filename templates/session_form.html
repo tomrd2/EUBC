@@ -38,7 +38,7 @@
 
     <label for="activity">Activity:</label>
     <select name="activity" required>
-      {% set activity_list = ['Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike','Brisk Walk' 'Other'] %}
+      {% set activity_list = ['Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike', 'Brisk Walk' ,'Other'] %}
       {% for option in activity_list %}
         <option value="{{ option }}"
           {% if session and session.Activity == option %}selected{% endif %}>{{ option }}</option>
