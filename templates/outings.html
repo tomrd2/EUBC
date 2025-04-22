@@ -41,9 +41,9 @@
               {% if current_user.coach %}
                 <a href="/edit_outing/{{ outing.Outing_ID }}">Edit</a>
                 |
-                <a href="/lineup/{{ outing.Outing_ID }}">Line-Up</a>
+                <a href="/lineups/{{ outing.Outing_ID }}">Line-Up</a>
               {% elif outing.Published %}
-                <a href="/lineup/{{ outing.Outing_ID }}">Line-Up</a>
+                <a href="{{ url_for('lineups.lineup_view', outing_id=outing.Outing_ID) }}">Line-Up</a>
               {% endif %}
             </td>
           </tr>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Line-Ups</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .athlete-columns {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .column {
+      flex: 1;
+      background: #f2f9ff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .column h3 {
+      text-align: center;
+      margin-top: 0;
+      background-color: #0074D9;
+      color: white;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .athlete-name {
+      margin: 5px 0;
+      padding: 5px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  {% include "_header.html" %}
+
+  <h2 style="margin-top: 20px; color: #001f3f;">
+    Line-Up for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>
+  </h2>
+
+  <h2>Available Athletes</h2>
+
+  <div class="athlete-columns">
+    <div class="column">
+      <h3>Strokes</h3>
+      {% for athlete in strokes %}
+        <div class="athlete-name">{{ athlete.Full_Name }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="column">
+      <h3>Bows</h3>
+      {% for athlete in bows %}
+        <div class="athlete-name">{{ athlete.Full_Name }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="column">
+      <h3>Boths</h3>
+      {% for athlete in boths %}
+        <div class="athlete-name">{{ athlete.Full_Name }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="column">
+      <h3>Coxes</h3>
+      {% for athlete in coxes %}
+        <div class="athlete-name">{{ athlete.Full_Name }}</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="crew-grid">
+
+  
+    {% for crew in crews %}
+      <div class="crew-column">
+        <div class="crew-row">{{ crew.Hull_Name or '—' }}</div>
+        <div class="crew-row">{{ crew.Boat_Type or '—' }}</div>
+        <div class="crew-row">{{ crew.Crew_Name or '—' }}</div>
+      </div>
+    {% endfor %}
+  
+    {% if current_user.coach %}
+      <div class="crew-column crew-add">
+        <script>
+            const hullData = {
+              {% for hull in available_hulls %}
+                "{{ hull.Hull_Name | escape }}": "{{ hull.Boat_Type | escape }}"{% if not loop.last %},{% endif %}
+              {% endfor %}
+            };
+          
+            function autoFillBoatType() {
+              const hullInput = document.querySelector('[name="Hull_Name"]');
+              const boatTypeInput = document.querySelector('[name="Boat_Type"]');
+          
+              hullInput.addEventListener('input', () => {
+                const name = hullInput.value.trim();
+                if (hullData[name]) {
+                  boatTypeInput.value = hullData[name];
+                }
+              });
+            }
+          
+            document.addEventListener('DOMContentLoaded', autoFillBoatType);
+        </script>
+        <form action="{{ url_for('lineups.add_crew', outing_id=outing_id) }}" method="post">
+          <div class="crew-row">
+            <input list="hull-options" name="Hull_Name" placeholder="Hull Name" required>
+            <datalist id="hull-options">
+                {% for hull in available_hulls %}
+                    <option value="{{ hull.Hull_Name }}">
+                {% endfor %}
+            </datalist>
+          </div>
+          <div class="crew-row">
+            <input type="text" name="Boat_Type" placeholder="e.g. 4+" maxlength="2" required>
+          </div>
+          <div class="crew-row">
+            <input type="text" name="Crew_Name" placeholder="Optional">
+          </div>
+          <div class="crew-row">
+            <button class="btn" type="submit" style="width: 100%; height: 24px; font-size: 13px; padding: 2px 6px;">Add</button>
+          </div>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
