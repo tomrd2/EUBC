@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Outings</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include "_header.html" %}
+    {% if current_user.coach: %}
+        <form action="/add_outing" method="post">
+            <input type="date" name="Outing_Date" placeholder="Outing Date" required>
+            <input type="text" name="Outing_Name" placeholder="Outing Name">
+            <input type="text" name="Description" placeholder="Description">
+            <input type="text" name="Location" placeholder="Location">
+            <button class="btn" type="submit">Create Outing</button>
+        </form>
+    {% endif %}
+  
+    <table border="1">
+        <thead>
+          <tr>
+            <th>Outing Date</th>
+            <th>Outing Name</th>
+            <th>Description</th>
+            <th>Location</th>
+            <th>Published</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for outing in outings %}
+          <tr>
+            <td>{{ outing.Outing_Date }}</td>
+            <td>{{ outing.Outing_Name }}</td>
+            <td>{{ outing.Description }}</td>
+            <td>{{ outing.Location }}</td>
+            <td>
+                <input type="checkbox" name="Published" value="1" {% if outing.Published %}checked{% endif %}>
+              </td>
+            <td>
+              {% if current_user.coach %}
+                <a href="/edit_outing/{{ outing.Outing_ID }}">Edit</a>
+                |
+                <a href="/lineup/{{ outing.Outing_ID }}">Line-Up</a>
+              {% elif outing.Published %}
+                <a href="/lineup/{{ outing.Outing_ID }}">Line-Up</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+</body>
+</html>
