@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Edit Outing</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include "_header.html" %}
+  <h2>Edit Outing</h2>
+  <form method="POST">
+    <input type="date" name="Outing_Date" value="{{ outing.Outing_Date|safe }}" required>
+    <input type="text" name="Outing_Name" value="{{ outing.Outing_Name }}">
+    <input type="text" name="Description" value="{{ outing.Description }}">
+    <input type="text" name="Location" value="{{ outing.Location }}">
+    <label>
+      <input type="checkbox" name="Published" value="1" {% if outing.Published %}checked{% endif %}>
+      Published
+    </label>
+    <button class="btn" type="submit">Update Outing</button>
+    <a class="btn" href="{{ url_for('outings.outings') }}">Cancel</a>
+  </form>
+</body>
+</html>

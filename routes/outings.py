@@ -47,3 +47,41 @@ def add_outing():
         conn.commit()
     conn.close()
     return redirect(url_for('outings.outings'))
+
+@outings_bp.route('/edit_outing/<int:outing_id>', methods=['GET', 'POST'])
+@login_required
+def edit_outing(outing_id):
+    if not current_user.coach:
+        return redirect(url_for('outings.outings'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        data = request.form
+        cursor.execute("""
+            UPDATE Outings
+            SET Outing_Date = %s,
+                Outing_Name = %s,
+                Description = %s,
+                Location = %s,
+                Published = %s
+            WHERE Outing_ID = %s
+        """, (
+            data['Outing_Date'],
+            data['Outing_Name'],
+            data['Description'],
+            data['Location'],
+            int(data.get('Published', 0)),
+            outing_id
+        ))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('outings.outings'))
+
+    # GET: fetch existing outing to prefill form
+    cursor.execute("SELECT * FROM Outings WHERE Outing_ID = %s", (outing_id,))
+    outing = cursor.fetchone()
+    conn.close()
+
+    return render_template('edit_outing.html', outing=outing)

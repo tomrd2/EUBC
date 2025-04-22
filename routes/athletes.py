@@ -53,4 +53,4 @@ def edit_athlete(athlete_id):
         ))
         conn.commit()
     conn.close()
-    return redirect(url_for('athletes'))
+    return redirect(url_for('athletes.athletes'))

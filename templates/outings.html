@@ -35,7 +35,7 @@
             <td>{{ outing.Description }}</td>
             <td>{{ outing.Location }}</td>
             <td>
-                <input type="checkbox" name="Published" value="1" {% if outing.Published %}checked{% endif %}>
+                <input type="checkbox" name="Published" value="1" {% if outing.Published %}checked{% endif %} disabled>
               </td>
             <td>
               {% if current_user.coach %}
