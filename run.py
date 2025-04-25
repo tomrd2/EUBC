@@ -9,6 +9,7 @@ from routes.hulls import hulls_bp
 from routes.sessions import sessions_bp
 from routes.outings import outings_bp
 from routes.lineups import lineups_bp
+from routes.pieces import pieces_bp
 
 from sockets import socketio  # ✅ Import the initialized socketio instance
 
@@ -23,6 +24,7 @@ app.register_blueprint(hulls_bp)
 app.register_blueprint(sessions_bp)
 app.register_blueprint(outings_bp)
 app.register_blueprint(lineups_bp)
+app.register_blueprint(pieces_bp)
 
 # Flask-Login setup
 login_manager = LoginManager()

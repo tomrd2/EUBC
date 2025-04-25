@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pieces</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include "_header.html" %}
+    {% if current_user.coach: %}
+        <form action="/add_piece" method="post">
+            <input type="hidden" name="Outing_ID" value="{{ outing_id }}">
+            <input type="integer" name="Distance" placeholder="Distance">
+            <input type="text" name="Description" placeholder="Description">
+            <input type="text" name="Rate_Cap" placeholder="Rate Cap">
+            <button class="btn" type="submit">Create Piece</button>
+        </form>
+    {% endif %}
+  
+    <table border="1">
+        <thead>
+          <tr>
+            <th>Distance</th>
+            <th>Rate Cap</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for piece in pieces %}
+          <tr>
+            <td>{{ piece.Distance }}</td>
+            <td>{{ piece.Rate_Cap }}</td>
+            <td>{{ piece.Description }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+</body>
+</html>

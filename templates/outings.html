@@ -45,6 +45,7 @@
               {% elif outing.Published %}
                 <a href="{{ url_for('lineups.lineup_view', outing_id=outing.Outing_ID) }}">Line-Up</a>
               {% endif %}
+              <a href="{{ url_for('pieces.piece_view', outing_id=outing.Outing_ID) }}">Pieces</a>
             </td>
           </tr>
           {% endfor %}
