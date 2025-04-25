@@ -167,5 +167,39 @@ body {
     margin: 0;
     padding: 0;
   }
+
+  .seats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  
+  .seat-slot {
+    width: 100px;
+    height: 30px;
+    border: 2px dashed #0074D9;
+    border-radius: 4px;
+    text-align: center;
+    line-height: 28px;
+    background-color: #f0f8ff;
+    font-size: 14px;
+    color: #333;
+  }
+  
+  .seat-slot.filled {
+    border-style: solid;
+    background-color: #d6f0ff;
+    font-weight: bold;
+  }
+  
+  .athlete-name {
+    cursor: grab;
+    transition: opacity 0.2s;
+  }
+  
+  .athlete-name[style*="pointer-events: none"] {
+    text-decoration: line-through;
+  }
   
   

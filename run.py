@@ -10,9 +10,14 @@ from routes.sessions import sessions_bp
 from routes.outings import outings_bp
 from routes.lineups import lineups_bp
 
-app = Flask(__name__)
+from sockets import socketio  # ✅ Import the initialized socketio instance
+
+app = Flask(__name__)  # ✅ NOW define the app
 app.secret_key = "72c26493ac0fcd6849b76f0069d1384d"
 
+socketio.init_app(app)  # ✅ Now initialize socketio AFTER defining app
+
+# Register Blueprints
 app.register_blueprint(athletes_bp)
 app.register_blueprint(hulls_bp)
 app.register_blueprint(sessions_bp)
@@ -94,5 +99,6 @@ def require_login():
         return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    from sockets import socketio
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
 

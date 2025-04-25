@@ -54,6 +54,28 @@ def lineup_view(outing_id):
             """, (outing_id,))
         available_hulls = cursor.fetchall()
 
+        with conn.cursor() as cursor:
+
+            cursor.execute("""
+            SELECT s.Crew_ID, s.Seat, s.Athlete_ID, s.Athlete_Name
+            FROM Seats s
+            JOIN Crews c ON s.Crew_ID = c.Crew_ID
+            WHERE c.Outing_ID = %s
+            """, (outing_id,))
+        assigned_seats = cursor.fetchall()
+
+        from collections import defaultdict
+
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM Seats")
+            seats_raw = cursor.fetchall()
+
+            seat_assignments = defaultdict(dict)
+            for seat in seats_raw:
+                crew_id = seat['Crew_ID']
+                seat_number = seat['Seat']
+                seat_assignments[crew_id][str(seat_number)] = seat
+
     conn.close()
 
     return render_template(
@@ -65,7 +87,9 @@ def lineup_view(outing_id):
         boths=boths,
         coxes=coxes,
         crews=crews,
-        available_hulls=available_hulls
+        available_hulls=available_hulls,
+        assigned_seats=assigned_seats,
+        seat_assignments=seat_assignments
     )
 
 @lineups_bp.route('/add_crew/<int:outing_id>', methods=['POST'])
