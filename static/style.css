@@ -201,5 +201,9 @@ body {
   .athlete-name[style*="pointer-events: none"] {
     text-decoration: line-through;
   }
+
+  td.center {
+    text-align: center;
+}
   
   

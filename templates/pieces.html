@@ -9,9 +9,9 @@
     {% if current_user.coach: %}
         <form action="/add_piece" method="post">
             <input type="hidden" name="Outing_ID" value="{{ outing_id }}">
-            <input type="integer" name="Distance" placeholder="Distance">
+            <input type="integer" name="Distance" placeholder="Distance (m)">
+            <input type="integer" name="Rate_Cap" placeholder="Rate Cap">
             <input type="text" name="Description" placeholder="Description">
-            <input type="text" name="Rate_Cap" placeholder="Rate Cap">
             <button class="btn" type="submit">Create Piece</button>
         </form>
     {% endif %}
@@ -22,14 +22,21 @@
             <th>Distance</th>
             <th>Rate Cap</th>
             <th>Description</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for piece in pieces %}
           <tr>
-            <td>{{ piece.Distance }}</td>
-            <td>{{ piece.Rate_Cap }}</td>
+            <td class="center">{{ piece.Distance }}</td>
+            <td class="center">{{ '' if piece.Rate_Cap == 0 else piece.Rate_Cap }}</td>
             <td>{{ piece.Description }}</td>
+            <td>
+                <a class="btn" href="{{ url_for('pieces.edit_piece', piece_id=piece.Piece_ID) }}">Edit</a>
+                <form action="{{ url_for('pieces.delete_piece', piece_id=piece.Piece_ID) }}" method="post" style="display:inline;">
+                    <button class="btn" type="submit" onclick="return confirm('Are you sure you want to delete this piece?')">Delete</button>
+                </form>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

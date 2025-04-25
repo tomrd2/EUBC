@@ -23,6 +23,18 @@ def add_piece():
     description = data.get('Description', '')
     rate_cap = data.get('Rate_Cap', '')
 
+    # If Description name is left blank, generate default name
+    if not description:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) AS count FROM Pieces WHERE Outing_ID = %s
+            """, (outing_id,))
+            result = cursor.fetchone()
+            count = result['count'] if result else 0
+        conn.close()
+        description = f"Piece {count + 1}"
+
     conn = get_db_connection()
     with conn.cursor() as cursor:
         cursor.execute("""
@@ -70,3 +82,25 @@ def edit_piece(piece_id):
     conn.close()
 
     return render_template('edit_piece.html', piece=piece)
+
+@pieces_bp.route('/delete_piece/<int:piece_id>', methods=['POST'])
+@login_required
+def delete_piece(piece_id):
+    if not current_user.coach:
+        return redirect(url_for('pieces.piece_view'))
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        # First, find the Outing_ID so we know where to return
+        cursor.execute("SELECT Outing_ID FROM Pieces WHERE Piece_ID = %s", (piece_id,))
+        outing = cursor.fetchone()
+
+        if outing:
+            outing_id = outing['Outing_ID']
+            cursor.execute("DELETE FROM Pieces WHERE Piece_ID = %s", (piece_id,))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('pieces.piece_view', outing_id=outing_id))
+    
+    conn.close()
+    return redirect(url_for('pieces.piece_view'))

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Edit Piece</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include "_header.html" %}
+
+  <h2>Edit Piece</h2>
+
+  <form method="post">
+    <label>Distance:</label>
+    <input type="number" name="Distance" value="{{ piece.Distance }}" required>
+
+    <label>Rate Cap:</label>
+    <input type="text" name="Rate_Cap" value="{{ piece.Rate_Cap }}">
+
+    <label>Description:</label>
+    <input type="text" name="Description" value="{{ piece.Description }}">
+
+    <button type="submit" class="btn">Update Piece</button>
+    <a href="{{ url_for('pieces.piece_view', outing_id=piece.Outing_ID) }}">Cancel</a>
+  </form>
+</body>
+</html>
