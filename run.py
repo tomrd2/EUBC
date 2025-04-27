@@ -105,4 +105,3 @@ def require_login():
 if __name__ == '__main__':
     from sockets import socketio
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-

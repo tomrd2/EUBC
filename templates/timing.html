@@ -1,136 +1,116 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Timing Results</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Timing Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
-  {% include "_header.html" %}
-  <h2>Timing for {{ outing.Outing_Date }} - {{ outing.Outing_Name }} ({{ piece_description }})</h2>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Crew</th>
-        <th>Start</th>
-        <th>Finish</th>
-        <th>Time</th>
-        <th>Comment</th>
-      </tr>
-    </thead>
-    <tbody>
-        {% for result in results %}
-          <tr>
-            <td>{{ result.Crew_Name }}</td>
-      
-            <td>
-              <input type="time" step="0.1" class="editable" data-field="Start" 
-                     data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
-                     value="{{ result.Start.strftime('%H:%M:%S.%f')[:-5] if result.Start else '' }}">
-              <button type="button" class="now-btn" data-target="Start" 
-                      data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}">Now</button>
-            </td>
-      
-            <td>
-              <input type="time" step="0.1" class="editable" data-field="Finish" 
-                     data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
-                     value="{{ result.Finish.strftime('%H:%M:%S.%f')[:-5] if result.Finish else '' }}">
-              <button type="button" class="now-btn" data-target="Finish" 
-                      data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}">Now</button>
-            </td>
-      
-            <td>
-                <input type="time" step="0.1" class="editable" data-field="Time" 
-                       data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
-                       {% if result.Time %}
-                         {% set total_seconds = result.Time.total_seconds() %}
-                         {% set hours = (total_seconds // 3600) | int %}
-                         {% set minutes = ((total_seconds % 3600) // 60) | int %}
-                         {% set seconds = (total_seconds % 60) %}
-                         value="{{ '%02d:%02d:%04.1f' % (hours, minutes, seconds) }}"
-                       {% else %}
-                         value=""
-                       {% endif %}>
-              </td>
-      
-            <td>
-              <input type="text" class="editable" data-field="Comment" 
-                     data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
-                     value="{{ result.Comment if result.Comment else '' }}">
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-      
-  </table>
+{% include "_header.html" %}
+<h2>Timing for {{ outing.Outing_Date }} - {{ outing.Outing_Name }} ({{ piece_description }})</h2>
 
-  <script>
-    function updateResult(field, value, pieceId, crewId) {
-      fetch('/update_result', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          field, value, piece_id: pieceId, crew_id: crewId
-        })
-      }).then(res => {
-        if (res.ok) {
-          console.log('Saved');
-        } else {
-          console.error('Save failed');
-        }
-      });
-    }
-  
+<table>
+  <thead>
+    <tr>
+      <th>Crew</th>
+      <th>Start</th>
+      <th>Finish</th>
+      <th>Time</th>
+      <th>Comment</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for result in results %}
+    <tr>
+      <td>{{ result.Crew_Name }}</td>
+
+      <td>
+        <input type="time" step="0.1" class="editable" data-field="Start" 
+          data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
+          value="{{ result.Start_formatted }}">
+        <button type="button" class="now-btn" data-target="Start" 
+          data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}">Now</button>
+      </td>
+
+      <td>
+        <input type="time" step="0.1" class="editable" data-field="Finish" 
+          data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
+          value="{{ result.Finish_formatted }}">
+        <button type="button" class="now-btn" data-target="Finish" 
+          data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}">Now</button>
+      </td>
+
+      <td>
+        <input type="time" step="0.1" class="editable" data-field="Time" 
+          data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
+          value="{{ result.Time_formatted }}">
+      </td>
+
+      <td>
+        <input type="text" class="editable" data-field="Comment" 
+          data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
+          value="{{ result.Comment if result.Comment else '' }}">
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- Load socket.io -->
+<script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
+
+<!-- Now load your main script AFTER the page is fully loaded -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const socket = io();
+
+    socket.on('connect', () => {
+        console.log('[SocketIO] Connected (Timing)');
+        socket.emit('join_piece', { piece_id: {{ piece_id }} });
+    });
+
     function calculateTime(startVal, finishVal) {
-      if (!startVal || !finishVal) return null;
-  
-      // Parse into seconds
-      const [sh, sm, ss] = startVal.split(':').map(parseFloat);
-      const [fh, fm, fs] = finishVal.split(':').map(parseFloat);
-  
-      const startSeconds = (sh * 3600) + (sm * 60) + ss;
-      const finishSeconds = (fh * 3600) + (fm * 60) + fs;
-  
-      let diff = finishSeconds - startSeconds;
-      if (diff < 0) diff += 86400;  // handle midnight crossing
-  
-      // Format back to HH:MM:SS.0
-      const h = Math.floor(diff / 3600);
-      const m = Math.floor((diff % 3600) / 60);
-      const s = (diff % 60).toFixed(1).padStart(4, '0');
-  
-      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s}`;
+        if (!startVal || !finishVal) return null;
+        const [sh, sm, ss] = startVal.split(':').map(parseFloat);
+        const [fh, fm, fs] = finishVal.split(':').map(parseFloat);
+        const startSeconds = (sh * 3600) + (sm * 60) + ss;
+        const finishSeconds = (fh * 3600) + (fm * 60) + fs;
+        let diff = finishSeconds - startSeconds;
+        if (diff < 0) diff += 86400;
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = (diff % 60).toFixed(1).padStart(4, '0');
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s}`;
     }
-  
+
     document.querySelectorAll('.editable').forEach(input => {
-      input.addEventListener('change', () => {
-        const field = input.dataset.field;
-        const value = input.value;
-        const pieceId = input.dataset.pieceId;
-        const crewId = input.dataset.crewId;
-  
-        updateResult(field, value, pieceId, crewId);
-  
-        if (field === 'Start' || field === 'Finish') {
-          const row = input.closest('tr');
-          const startInput = row.querySelector('[data-field="Start"]');
-          const finishInput = row.querySelector('[data-field="Finish"]');
-          const timeInput = row.querySelector('[data-field="Time"]');
-  
-          const startVal = startInput.value;
-          const finishVal = finishInput.value;
-  
-          if (startVal && finishVal) {
-            const calculatedTime = calculateTime(startVal, finishVal);
-            if (calculatedTime) {
-              timeInput.value = calculatedTime;
-              updateResult('Time', calculatedTime, pieceId, crewId);
+        input.addEventListener('change', () => {
+            const field = input.dataset.field;
+            const value = input.value;
+            const pieceId = input.dataset.pieceId;
+            const crewId = input.dataset.crewId;
+            socket.emit('result_update', { field, value, piece_id: pieceId, crew_id: crewId });
+
+            if (field === 'Start' || field === 'Finish') {
+                const row = input.closest('tr');
+                const startInput = row.querySelector('[data-field="Start"]');
+                const finishInput = row.querySelector('[data-field="Finish"]');
+                const timeInput = row.querySelector('[data-field="Time"]');
+
+                const startVal = startInput.value;
+                const finishVal = finishInput.value;
+
+                if (startVal && finishVal) {
+                    const calculatedTime = calculateTime(startVal, finishVal);
+                    if (calculatedTime) {
+                        timeInput.value = calculatedTime;
+                        socket.emit('result_update', { field: 'Time', value: calculatedTime, piece_id: pieceId, crew_id: crewId });
+                    }
+                }
             }
-          }
-        }
-      });
+        });
     });
 
     document.querySelectorAll('.now-btn').forEach(button => {
@@ -143,40 +123,37 @@
             const hours = now.getHours().toString().padStart(2, '0');
             const minutes = now.getMinutes().toString().padStart(2, '0');
             const seconds = now.getSeconds().toString().padStart(2, '0');
-            const tenths = Math.floor(now.getMilliseconds() / 100);  // tenths of seconds
-
+            const tenths = Math.floor(now.getMilliseconds() / 100);
             const timeStr = `${hours}:${minutes}:${seconds}.${tenths}`;
 
-            const input = button.parentElement.querySelector('input');
+            const row = button.closest('tr');
+            const input = row.querySelector(`input[data-field="${field}"]`);
             input.value = timeStr;
 
-            // Save it
-            updateResult(field, timeStr, pieceId, crewId);
+            socket.emit('result_update', { field, value: timeStr, piece_id: pieceId, crew_id: crewId });
 
-            // Also try re-calculate Time if Start and Finish are now both set
-            if (field === 'Start' || field === 'Finish') {
-            const row = button.closest('tr');
-            const startInput = row.querySelector('[data-field="Start"]');
-            const finishInput = row.querySelector('[data-field="Finish"]');
-            const timeInput = row.querySelector('[data-field="Time"]');
-
-            const startVal = startInput.value;
-            const finishVal = finishInput.value;
-
+            const startVal = row.querySelector('[data-field="Start"]').value;
+            const finishVal = row.querySelector('[data-field="Finish"]').value;
             if (startVal && finishVal) {
                 const calculatedTime = calculateTime(startVal, finishVal);
                 if (calculatedTime) {
-                timeInput.value = calculatedTime;
-                updateResult('Time', calculatedTime, pieceId, crewId);
+                    const timeInput = row.querySelector('[data-field="Time"]');
+                    timeInput.value = calculatedTime;
+                    socket.emit('result_update', { field: 'Time', value: calculatedTime, piece_id: pieceId, crew_id: crewId });
                 }
-            }
             }
         });
     });
 
-  </script>
-  
-    
-  
+    socket.on('result_updated', (data) => {
+        const input = document.querySelector(`.editable[data-field="${data.field}"][data-crew-id="${data.crew_id}"]`);
+        if (input) {
+            input.value = data.value;
+        }
+    });
+
+});
+</script>
+
 </body>
 </html>

@@ -45,3 +45,31 @@ def handle_remove_seat(data):
         'athlete_name': ''
     }, room=f"outing_{data['outing_id']}", include_self=False)
 
+@socketio.on('join_piece')
+def handle_join_piece(data):
+    piece_id = data['piece_id']
+    join_room(f"piece_{piece_id}")
+    print(f"User joined piece {piece_id}")
+
+@socketio.on('result_update')
+def handle_result_update(data):
+    piece_id = data['piece_id']
+    crew_id = data['crew_id']
+    field = data['field']
+    value = data['value']
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        query = f"UPDATE Results SET {field} = %s WHERE Piece_ID = %s AND Crew_ID = %s"
+        cursor.execute(query, (value, piece_id, crew_id))
+        conn.commit()
+    conn.close()
+
+    emit('result_updated', {
+        'piece_id': piece_id,
+        'crew_id': crew_id,
+        'field': field,
+        'value': value
+    }, room=f"piece_{piece_id}", include_self=False)
+
+

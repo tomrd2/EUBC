@@ -34,6 +34,44 @@ def timing_view(piece_id):
         """, (piece_id,))
         results = cursor.fetchall()
 
+        for row in results:
+            # Format Start
+            if row['Start']:
+                if hasattr(row['Start'], 'strftime'):
+                    row['Start_formatted'] = row['Start'].strftime('%H:%M:%S.%f')[:-5]
+                else:
+                    # timedelta case
+                    total_seconds = row['Start'].total_seconds()
+                    h = int(total_seconds // 3600)
+                    m = int((total_seconds % 3600) // 60)
+                    s = total_seconds % 60
+                    row['Start_formatted'] = f"{h:02d}:{m:02d}:{s:04.1f}"
+            else:
+                row['Start_formatted'] = ''
+
+            # Format Finish
+            if row['Finish']:
+                if hasattr(row['Finish'], 'strftime'):
+                    row['Finish_formatted'] = row['Finish'].strftime('%H:%M:%S.%f')[:-5]
+                else:
+                    total_seconds = row['Finish'].total_seconds()
+                    h = int(total_seconds // 3600)
+                    m = int((total_seconds % 3600) // 60)
+                    s = total_seconds % 60
+                    row['Finish_formatted'] = f"{h:02d}:{m:02d}:{s:04.1f}"
+            else:
+                row['Finish_formatted'] = ''
+
+            # Format Time
+            if row['Time']:
+                total_seconds = row['Time'].total_seconds()
+                h = int(total_seconds // 3600)
+                m = int((total_seconds % 3600) // 60)
+                s = total_seconds % 60
+                row['Time_formatted'] = f"{h:02d}:{m:02d}:{s:04.1f}"
+            else:
+                row['Time_formatted'] = ''
+
     conn.close()
 
     return render_template('timing.html',
