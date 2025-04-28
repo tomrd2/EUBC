@@ -3,6 +3,12 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import pymysql
+
+import os
+from dotenv import load_dotenv
+# Load the .env file
+load_dotenv()
+
 from db import get_db_connection
 from routes.athletes import athletes_bp
 from routes.hulls import hulls_bp
@@ -15,7 +21,8 @@ from routes.timing import timing_bp
 from sockets import socketio  # ✅ Import the initialized socketio instance
 
 app = Flask(__name__)  # ✅ NOW define the app
-app.secret_key = "72c26493ac0fcd6849b76f0069d1384d"
+# Accessing the secret key from the variable defined as SECRET_KEY in .env file (export SECRET_KEY={your_secret_key'})
+app.secret_key = os.getenv('SECRET_KEY')
 
 socketio.init_app(app)  # ✅ Now initialize socketio AFTER defining app
 
