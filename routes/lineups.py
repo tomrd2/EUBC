@@ -20,7 +20,9 @@ def lineup_view(outing_id):
         bows = cursor.fetchall()
         cursor.execute("SELECT * FROM Athletes WHERE Side = 'Both' AND Coach IS NULL ORDER BY Full_Name")
         boths = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Cox = 1 AND Coach IS NULL ORDER BY Full_Name")
+        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Neither' AND Coach IS NULL ORDER BY Full_Name")
+        neithers = cursor.fetchall()
+        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Cox' AND Coach IS NULL ORDER BY Full_Name")
         coxes = cursor.fetchall()
 
     with conn.cursor() as cursor:
@@ -85,6 +87,7 @@ def lineup_view(outing_id):
         strokes=strokes,
         bows=bows,
         boths=boths,
+        neithers=neithers,
         coxes=coxes,
         crews=crews,
         available_hulls=available_hulls,

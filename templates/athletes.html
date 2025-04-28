@@ -20,6 +20,7 @@
       <option value="Stroke">Stroke</option>
       <option value="Both">Both</option>
       <option value="Neither">Neither</option>
+      <option value="Cox">Cox</option>
     </select>
     <label>
       <input type="checkbox" name="Sculls" value="1">
@@ -39,7 +40,7 @@
     <thead>
       <tr>
         <th>ID</th><th>Name</th><th>Initials</th><th>Gender</th><th>Side</th>
-        <th>Sculls</th><th>Cox</th><th>Joined</th><th>Email</th><th>Edit</th>
+        <th>Sculls</th>><th>Joined</th><th>Email</th><th>Edit</th>
       </tr>
     </thead>
     <tbody>
@@ -50,14 +51,22 @@
           <td>{{ athlete.Athlete_ID }}</td>
           <td><input type="text" name="Full_Name" value="{{ athlete.Full_Name }}"></td>
           <td><input type="text" name="Initials" value="{{ athlete.Initials }}" maxlength="4" size="4"></td>
-          <td><input type="text" name="M_W" value="{{ athlete.M_W }}" maxlength="1" size="1"></td>
-          <td><input type="text" name="Side" value="{{ athlete.Side }}" maxlength="7" size="7"></td>
           <td>
+            <select name="M_W">
+              <option value="M" {% if athlete.M_W == 'M' %}selected{% endif %}>M</option>
+              <option value="W" {% if athlete.M_W == 'W' %}selected{% endif %}>W</option>
+            </select>
+            <td>
+              <select name="Side">
+                <option value="Bow" {% if athlete.Side == 'Bow' %}selected{% endif %}>Bow</option>
+                <option value="Stroke" {% if athlete.Side == 'Stroke' %}selected{% endif %}>Stroke</option>
+                <option value="Both" {% if athlete.Side == 'Both' %}selected{% endif %}>Both</option>
+                <option value="Neither" {% if athlete.Side == 'Neither' %}selected{% endif %}>Neither</option>
+                <option value="Cox" {% if athlete.Side == 'Cox' %}selected{% endif %}>Cox</option>
+              </select>
+            </td>
+          <td>            
             <input type="checkbox" name="Sculls" value="1" {% if athlete.Sculls %}checked{% endif %}>
-          </td>
-          
-          <td>
-            <input type="checkbox" name="Cox" value="1" {% if athlete.Cox %}checked{% endif %}>
           </td>
           
           <td><input type="date" name="Joined" value="{{ athlete.Joined }}"></td>
