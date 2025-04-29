@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 # Load the .env file
 load_dotenv()
 
+#Adding a comment to test GIT
+
 from db import get_db_connection
 from routes.athletes import athletes_bp
 from routes.hulls import hulls_bp
