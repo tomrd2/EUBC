@@ -1,12 +1,17 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, Response
 from flask_login import login_required, current_user
 from db import get_db_connection
+from sockets import socketio  # ✅ Import the initialized socketio instance
+from flask_socketio import join_room, emit
 
 lineups_bp = Blueprint('lineups', __name__)
 
 @lineups_bp.route('/lineups/<int:outing_id>')
 @login_required
 def lineup_view(outing_id):
+    if not current_user.coach:
+        return redirect(url_for('view_lineups.lineup_view', outing_id=outing_id))
+
     conn = get_db_connection()
     with conn.cursor() as cursor:
         # Get outing details
@@ -125,4 +130,43 @@ def add_crew(outing_id):
     conn.close()
 
     return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+
+@socketio.on('delete_crew')
+def handle_delete_crew(data):
+    crew_id = data.get('crew_id')
+    outing_id = data.get('outing_id')
+
+    if not crew_id:
+        return
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute("DELETE FROM Crews WHERE Crew_ID = %s", (crew_id,))
+        cursor.execute("DELETE FROM Seats WHERE Crew_ID = %s", (crew_id,))
+        conn.commit()
+    conn.close()
+
+    emit('crew_deleted', {'crew_id': crew_id}, room=f'outing_{outing_id}')
+
+@lineups_bp.route('/publish_lineup/<int:outing_id>', methods=['POST'])
+@login_required
+def publish_lineup(outing_id):
+    if not current_user.coach:
+        return redirect(url_for('view_lineups.lineup_view', outing_id=outing_id))
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute("UPDATE Outings SET Published = 1 WHERE Outing_ID = %s", (outing_id,))
+        conn.commit()
+    conn.close()
+
+    return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+
+@socketio.on('join_outing')
+def handle_join_outing(data):
+    outing_id = data.get('outing_id')
+    join_room(f'outing_{outing_id}')
+
+
+
 

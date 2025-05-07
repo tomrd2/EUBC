@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Line-Ups</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .athlete-columns {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .column {
+      flex: 1;
+      background: #f2f9ff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .column h3 {
+      text-align: center;
+      margin-top: 0;
+      background-color: #0074D9;
+      color: white;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .athlete-name {
+      margin: 5px 0;
+      padding: 5px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  {% include "_header.html" %}
+
+  <h2 style="margin-top: 20px; color: #001f3f;">
+    Line-Up for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>
+  </h2>
+
+
+  <div class="crew-grid">
+
+  
+    {% for crew in crews %}
+    <div class="crew-column" data-crew-id="{{ crew.Crew_ID }}">
+      <div class="crew-row">
+        <td>{{ crew.Hull_Name or '' }}</td>
+      </div>
+  
+      <div class="crew-row">
+            <td>{{ crew.Boat_Type or '' }}"</td>td>
+      </div>
+  
+      <div class="crew-row">
+        <td>{{ crew.Crew_Name or '' }}</td>
+      </div>
+  
+      <div class="seats" data-crew-id="{{ crew.Crew_ID }}" data-boat-type="{{ crew.Boat_Type }}">
+        
+        <div class="seats-static">
+          {% set seat_count = crew.Boat_Type[1]|int %}
+          {% set has_cox = '+' in crew.Boat_Type %}
+  
+          {% for i in range(1, seat_count + 1) %}
+            {% set seat = seat_assignments[crew.Crew_ID][i|string] if seat_assignments.get(crew.Crew_ID) and seat_assignments[crew.Crew_ID].get(i|string) %}
+            <div class="seat-static">
+              <strong>{{ i }}:</strong>
+              {{ seat.Athlete_Name if seat else '—' }}
+            </div>
+          {% endfor %}
+  
+          {% if has_cox %}
+            {% set cox = seat_assignments[crew.Crew_ID]['Cox'] if seat_assignments.get(crew.Crew_ID) and seat_assignments[crew.Crew_ID].get('Cox') %}
+            <div class="seat-static">
+              <strong>Cox:</strong>
+              {{ cox.Athlete_Name if cox else '—' }}
+            </div>
+          {% endif %}
+        </div>
+    </div>
+  {% endfor %}
+    
+  </div>
+
+</body>
+</html>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>

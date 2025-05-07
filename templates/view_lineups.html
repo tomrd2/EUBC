@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>View Line-Up</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .column {
+      flex: 1;
+      background: #f2f9ff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .column h3 {
+      text-align: center;
+      margin-top: 0;
+      background-color: #0074D9;
+      color: white;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .athlete-name {
+      margin: 5px 0;
+      padding: 5px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  {% include "_header.html" %}
+
+  <h2 style="margin-top: 20px; color: #001f3f;">
+    Line-Up for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>
+  </h2>
+
+
+  <div class="crew-columns">
+
+    {% for crew in crews %}
+    <div class="crew-card" data-crew-id="{{ crew.Crew_ID }}">
+      <div class="crew-row">
+        <div>{{ crew.Hull_Name or '' }}</div>
+      </div>
+  
+      <div class="crew-row">
+            <div>{{ crew.Boat_Type or '' }}</div>
+      </div>
+  
+      <div class="crew-row">
+        <div>{{ crew.Crew_Name or '' }}</div>
+      </div>
+  
+      <div class="seats" data-crew-id="{{ crew.Crew_ID }}" data-boat-type="{{ crew.Boat_Type }}">
+        <div class="seat-list">
+          {% for seat in assigned_seats %}
+            {% if seat.Crew_ID == crew.Crew_ID %}
+              <div class="seat-row">{{ seat.Seat }}: {{ seat.Athlete_Name }}</div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+  {% endfor %}
+    
+  </div>
+
+</body>
+</html>

@@ -1,8 +1,22 @@
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from flask_login import login_required
 from db import get_db_connection
+from datetime import timedelta
 
 timing_bp = Blueprint('timing', __name__)
+
+def time_to_seconds(t):
+    if isinstance(t, timedelta):
+        return t.total_seconds()
+    elif isinstance(t, str):
+        try:
+            h, m, s = map(int, t.split(':'))
+            return h * 3600 + m * 60 + s
+        except ValueError:
+            return 0
+    else:
+        return 0
+
 
 @timing_bp.route('/timing/<int:piece_id>')
 @login_required
@@ -24,17 +38,45 @@ def timing_view(piece_id):
         cursor.execute("SELECT Outing_Date, Outing_Name FROM Outings WHERE Outing_ID = %s", (outing_id,))
         outing = cursor.fetchone()
 
+        # Get all Crew_IDs for the outing
+        cursor.execute("SELECT Crew_ID FROM Crews WHERE Outing_ID = %s", (outing_id,))
+        crew_ids = [row['Crew_ID'] for row in cursor.fetchall()]
+
+        # Get existing Result rows for this piece
+        cursor.execute("SELECT Crew_ID FROM Results WHERE Piece_ID = %s", (piece_id,))
+        existing_result_crew_ids = {row['Crew_ID'] for row in cursor.fetchall()}
+
+        # Find crews missing a Results row
+        missing_crew_ids = set(crew_ids) - existing_result_crew_ids
+
+        # Insert missing rows with default (NULL) values
+        for crew_id in missing_crew_ids:
+            cursor.execute("""
+                INSERT INTO Results (Piece_ID, Crew_ID) VALUES (%s, %s)
+            """, (piece_id, crew_id))
+
+        conn.commit()
+
+        # Fetch all GMT values into a dictionary: { "Boat_Type": timedelta }
+        cursor.execute("SELECT Boat_Type, GMT FROM GMTs")
+        gmts = {row['Boat_Type']: row['GMT'] for row in cursor.fetchall()}
+
         # Fetch all Results JOINED with Crews
         cursor.execute("""
-            SELECT r.*, c.Hull_Name, c.Crew_Name
+            SELECT r.*, c.Hull_Name, c.Crew_Name, c.Boat_Type, p.Distance
             FROM Results r
             JOIN Crews c ON r.Crew_ID = c.Crew_ID
+            JOIN Pieces p ON r.Piece_ID = p.Piece_ID
             WHERE r.Piece_ID = %s
             ORDER BY c.Crew_Name ASC
         """, (piece_id,))
+
         results = cursor.fetchall()
 
         for row in results:
+            print('Piece_ID:',row.get('Piece_ID'))
+            print('Distance: ',row.get('Distance'))
+
             # Format Start
             if row['Start']:
                 if hasattr(row['Start'], 'strftime'):
@@ -71,6 +113,13 @@ def timing_view(piece_id):
                 row['Time_formatted'] = f"{h:02d}:{m:02d}:{s:04.1f}"
             else:
                 row['Time_formatted'] = ''
+
+            # Get raw GMT time for this boat type
+            raw_gmt = gmts.get(row['Boat_Type'])
+            print(f"🧾 Raw GMT value from DB for {row['Boat_Type']}: {raw_gmt}")
+    
+            # Convert to seconds for use in JavaScript
+            row['GMT_value'] = time_to_seconds(raw_gmt)
 
     conn.close()
 

@@ -17,6 +17,7 @@
       <th>Start</th>
       <th>Finish</th>
       <th>Time</th>
+      <th>GMT %</th>
       <th>Comment</th>
     </tr>
   </thead>
@@ -43,8 +44,17 @@
 
       <td>
         <input type="time" step="0.1" class="editable" data-field="Time" 
-          data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
+          data-crew-id="{{ result.Crew_ID }}" 
+          data-piece-id="{{ result.Piece_ID }}"
+          data-gmt="{{ result.GMT_value }}" 
+          data-distance="{{ result.Distance }}"
           value="{{ result.Time_formatted }}">
+      </td>
+
+      <td>
+        <input type="text" class="gmt-pct" readonly 
+          data-crew-id="{{ result.Crew_ID }}"
+          value="">
       </td>
 
       <td>
@@ -85,6 +95,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s}`;
     }
 
+    function calculateGmtPercent(gmt, distance, timeStr) {
+        console.log('Calculating GMT%', { gmt, distance, timeStr });
+
+        const parts = timeStr.split(':');
+        if (parts.length < 3) return '';
+        const [h, m, s] = parts.map(parseFloat);
+        const totalSeconds = (h * 3600) + (m * 60) + s;
+
+        if (!gmt || !distance || !totalSeconds) {
+          console.log('Invalid input to GMT calculation:', { gmt, distance, totalSeconds });
+          return '';
+        }
+
+        const percentage = (gmt * distance) / (totalSeconds * 2000) * 100;
+        return percentage.toFixed(1);
+    }
+
     document.querySelectorAll('.editable').forEach(input => {
         input.addEventListener('change', () => {
             const field = input.dataset.field;
@@ -110,6 +137,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            if (field === 'Time') {
+                const row = input.closest('tr');
+                const gmtInput = row.querySelector('.gmt-pct');
+                const gmt = parseFloat(input.dataset.gmt);
+                const distance = parseFloat(input.dataset.distance);
+                const pct = calculateGmtPercent(gmt, distance, input.value);
+                if (gmtInput && pct !== '') {
+                    gmtInput.value = pct + '%';
+                }
+            }
+
         });
     });
 
@@ -140,6 +178,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const timeInput = row.querySelector('[data-field="Time"]');
                     timeInput.value = calculatedTime;
                     socket.emit('result_update', { field: 'Time', value: calculatedTime, piece_id: pieceId, crew_id: crewId });
+                    const gmt = parseFloat(timeInput.dataset.gmt);
+                    const distance = parseFloat(timeInput.dataset.distance);
+                    const gmtPct = calculateGmtPercent(gmt, distance, calculatedTime);
+                    const gmtInput = row.querySelector('.gmt-pct');
+                    if (gmtInput && gmtPct !== '') {
+                        gmtInput.value = gmtPct + '%';
+                    }
                 }
             }
         });

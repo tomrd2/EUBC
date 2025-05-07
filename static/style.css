@@ -81,6 +81,15 @@ body {
     background-color: #005fa3;
   }
 
+  .column {
+    flex: 0 0 160px; /* Or use the same width as .crew-card */
+    max-width: 170px;
+    background: #f2f9ff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 6px;
+  }
+
   .crew-columns {
     display: flex;
     gap: 20px;
@@ -93,7 +102,7 @@ body {
     border-radius: 6px;
     padding: 10px;
     background-color: #f9f9f9;
-    min-width: 180px;
+    min-width: 170px;
   }
   
   .crew-card.new-crew {
@@ -127,7 +136,7 @@ body {
     padding: 6px 8px;
     border: 1px solid #ccc;
     border-radius: 6px;
-    min-width: 160px;
+    min-width: 170px;
   }
   
   .crew-column.crew-add {
@@ -168,20 +177,27 @@ body {
     padding: 0;
   }
 
+  .seat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
   .seats {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 6px;
     margin-top: 10px;
   }
   
   .seat-slot {
-    width: 100px;
-    height: 30px;
+    width: 100%;
+    height: 32px;
     border: 2px dashed #0074D9;
     border-radius: 4px;
     text-align: center;
-    line-height: 28px;
+    line-height: 30px;
     background-color: #f0f8ff;
     font-size: 14px;
     color: #333;
