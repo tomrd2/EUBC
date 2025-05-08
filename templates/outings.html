@@ -46,6 +46,7 @@
               <a href="{{ url_for('view_lineups.lineup_view', outing_id=outing.Outing_ID) }}">Line Up</a>
               {% endif %}
               <a href="{{ url_for('pieces.piece_view', outing_id=outing.Outing_ID) }}">Pieces</a>
+              <a href="{{ url_for('results.results_view', outing_id=outing.Outing_ID) }}">Results</a>
             </td>
           </tr>
           {% endfor %}
