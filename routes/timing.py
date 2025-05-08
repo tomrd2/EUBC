@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, jsonif
 from flask_login import login_required
 from db import get_db_connection
 from datetime import timedelta
+from flask_socketio import SocketIO, emit
+from sockets import socketio
 
 timing_bp = Blueprint('timing', __name__)
 
@@ -138,7 +140,7 @@ def update_result():
     piece_id = data['piece_id']
     crew_id = data['crew_id']
 
-    if field not in ['Start', 'Finish', 'Time', 'Comment']:
+    if field not in ['Start', 'Finish', 'Time', 'Comment', 'GMT_Percent']:
         return jsonify({'error': 'Invalid field'}), 400
 
     conn = get_db_connection()
@@ -152,4 +154,25 @@ def update_result():
     conn.close()
 
     return jsonify({'status': 'success'})
+
+@socketio.on('result_update')
+def handle_result_update(data):
+    field = data.get('field')
+    value = data.get('value')
+    piece_id = data.get('piece_id')
+    crew_id = data.get('crew_id')
+
+    if not (field and piece_id and crew_id):
+        print("⚠️ Invalid update data:", data)
+        return
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        query = f"UPDATE Results SET {field} = %s WHERE Piece_ID = %s AND Crew_ID = %s"
+        cursor.execute(query, (value, piece_id, crew_id))
+        conn.commit()
+    conn.close()
+
+    emit('result_updated', data, broadcast=True)
+
 

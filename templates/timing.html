@@ -52,9 +52,9 @@
       </td>
 
       <td>
-        <input type="text" class="gmt-pct" readonly 
+        <input type="text" class="GMT" readonly 
           data-crew-id="{{ result.Crew_ID }}"
-          value="">
+          value="{{ result.GMT_Percent }}">
       </td>
 
       <td>
@@ -125,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const startInput = row.querySelector('[data-field="Start"]');
                 const finishInput = row.querySelector('[data-field="Finish"]');
                 const timeInput = row.querySelector('[data-field="Time"]');
+                const gmtInput = row.querySelector('.GMT');
 
                 const startVal = startInput.value;
                 const finishVal = finishInput.value;
@@ -133,18 +134,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     const calculatedTime = calculateTime(startVal, finishVal);
                     if (calculatedTime) {
                         timeInput.value = calculatedTime;
-                        socket.emit('result_update', { field: 'Time', value: calculatedTime, piece_id: pieceId, crew_id: crewId });
+                        socket.emit('result_update', {
+                            field: 'Time',
+                            value: calculatedTime,
+                            piece_id: pieceId,
+                            crew_id: crewId
+                        });
+
+                        const gmt = parseFloat(timeInput.dataset.gmt);
+                        const distance = parseFloat(timeInput.dataset.distance);
+                        const pct = calculateGmtPercent(gmt, distance, calculatedTime);
+                        if (gmtInput && pct !== '') {
+                            gmtInput.value = pct + '%';
+                            socket.emit('result_update', {
+                                field: 'GMT_Percent',
+                                value: pct,
+                                piece_id: pieceId,
+                                crew_id: crewId
+                            });
+                        }
                     }
                 }
             }
+
             if (field === 'Time') {
                 const row = input.closest('tr');
-                const gmtInput = row.querySelector('.gmt-pct');
+                const gmtInput = row.querySelector('.GMT');
                 const gmt = parseFloat(input.dataset.gmt);
                 const distance = parseFloat(input.dataset.distance);
                 const pct = calculateGmtPercent(gmt, distance, input.value);
                 if (gmtInput && pct !== '') {
                     gmtInput.value = pct + '%';
+                    socket.emit('result_update', {
+                                field: 'GMT_Percent',
+                                value: pct,
+                                piece_id: pieceId,
+                                crew_id: crewId
+                            });
                 }
             }
 
@@ -181,9 +207,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const gmt = parseFloat(timeInput.dataset.gmt);
                     const distance = parseFloat(timeInput.dataset.distance);
                     const gmtPct = calculateGmtPercent(gmt, distance, calculatedTime);
-                    const gmtInput = row.querySelector('.gmt-pct');
+                    const gmtInput = row.querySelector('.GMT');
                     if (gmtInput && gmtPct !== '') {
                         gmtInput.value = gmtPct + '%';
+                        socket.emit('result_update', {
+                            field: 'GMT_Percent',
+                            value: gmtPct,
+                            piece_id: pieceId,
+                            crew_id: crewId
+                        });
                     }
                 }
             }
