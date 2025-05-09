@@ -1,4 +1,4 @@
-from flask import Blueprint, Flask, render_template, request, redirect, url_for, session
+from flask import Blueprint, Flask, render_template, request, redirect, url_for, session, flash
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
@@ -114,6 +114,43 @@ def require_login():
 
     if request.endpoint not in allowed_routes and not current_user.is_authenticated:
         return redirect(url_for('login'))
+
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        current_pw = request.form['current_password']
+        new_pw = request.form['new_password']
+        confirm_pw = request.form['confirm_password']
+
+        if new_pw != confirm_pw:
+            flash('New passwords do not match.', 'error')
+            return redirect(url_for('change_password'))
+
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT Password_Hash FROM Athletes WHERE Athlete_ID = %s", (current_user.id,))
+            user = cursor.fetchone()
+
+            if user and check_password_hash(user['Password_Hash'], current_pw):
+                print("Password correct")
+            else:
+                flash('Current password is incorrect.', 'error')
+                return redirect(url_for('change_password'))
+
+            hashed_pw = generate_password_hash(new_pw)
+            cursor.execute("UPDATE Athletes SET Password_Hash = %s WHERE Athlete_ID = %s", (hashed_pw, current_user.id))
+            conn.commit()
+        conn.close()
+
+        flash('Password changed successfully.', 'success')
+        if current_user.coach:
+            return redirect(url_for('coach_home'))
+        else:
+            return redirect(url_for('athlete_home'))
+
+    return render_template('change_password.html')
 
 if __name__ == '__main__':
     from sockets import socketio

@@ -12,6 +12,7 @@
   <div style="text-align: right;">
     Logged in as <strong>{{ current_user.name }}</strong>
     | <a href="{{ url_for('logout') }}" style="color: white; text-decoration: underline;">Logout</a>
+      <a href="{{ url_for('change_password') }}" style="color: white; text-decoration: underline;">Change Password</a> 
   </div>
   {% endif %}
 </header>
