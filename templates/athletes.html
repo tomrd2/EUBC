@@ -40,7 +40,7 @@
     <thead>
       <tr>
         <th>ID</th><th>Name</th><th>Initials</th><th>Gender</th><th>Side</th>
-        <th>Sculls</th>><th>Joined</th><th>Email</th><th>Edit</th>
+        <th>Sculls</th><th>Joined</th><th>Email</th><th>Action</th>
       </tr>
     </thead>
     <tbody>
@@ -71,9 +71,18 @@
           
           <td><input type="date" name="Joined" value="{{ athlete.Joined }}"></td>
           <td><input type="email" name="Email" value="{{ athlete.Email }}"></td>
-          <td><button class="btn" type="submit">Save</button></td>
-        </tr>
-      </form>
+          <td style="white-space: nowrap;">
+            <!-- Save Button inside the original form -->
+            <button class="btn" type="submit">Save</button>
+          </form> <!-- Close the outer form here -->
+          
+          <!-- Reset Password Button in a separate form -->
+          <form action="{{ url_for('athletes.reset_password', athlete_id=athlete.Athlete_ID) }}" method="post" style="display:inline;">
+            <button class="btn" type="submit" onclick="return confirm('Reset password for {{ athlete.Full_Name }} to {{ athlete.Initials.lower() }}_eubc?')">Reset Password</button>
+          </form>
+          </td>
+
+    
       {% endfor %}
     </tbody>
   </table>

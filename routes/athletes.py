@@ -1,4 +1,4 @@
-from flask import Blueprint, Flask, render_template, request, redirect, url_for, session
+from flask import Blueprint, Flask, render_template, request, redirect, url_for, session, flash
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
@@ -54,3 +54,32 @@ def edit_athlete(athlete_id):
         conn.commit()
     conn.close()
     return redirect(url_for('athletes.athletes'))
+
+@athletes_bp.route('/reset_password/<int:athlete_id>', methods=['POST'])
+def reset_password(athlete_id):
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        # Get all athletes who don't yet have a password
+        cursor.execute("SELECT Athlete_ID, Initials FROM Athletes")
+        athletes = cursor.fetchall()
+
+        for athlete in athletes:
+            if athlete_id == athlete['Athlete_ID']:
+                initials = athlete['Initials']
+
+                # You can choose your default password pattern here
+                default_password = f"{initials.lower()}_eubc"  # e.g., "jd_123"
+                hashed = generate_password_hash(default_password)
+
+                # Update database with the hashed password
+                cursor.execute(
+                    "UPDATE Athletes SET Password_Hash = %s WHERE Athlete_ID = %s",
+                    (hashed, athlete_id)
+                )
+                print(f"Set password for Athlete_ID {athlete_id} to '{default_password}'")
+
+        conn.commit()
+    conn.close()
+
+    flash(f"Password for athlete {athlete_id} reset to default.", "success")
+    return redirect(url_for('athletes.athletes')) 
