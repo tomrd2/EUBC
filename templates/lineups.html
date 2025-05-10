@@ -117,6 +117,11 @@
           </div>
         {% endfor %}
         </div>
+        <div class="column" id="guest-column">
+          <h3>Guests</h3>
+          <input type="text" id="guest-input" placeholder="Enter guest name" style="width: 95%; box-sizing: border-box;">
+          <div id="guest-list"></div>
+        </div>
     </div>
 {% endif %}
 
@@ -265,6 +270,35 @@ socket.on('seat_cleared', data => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  const guestInput = document.getElementById('guest-input');
+  const guestList = document.getElementById('guest-list');
+
+  guestInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const name = guestInput.value.trim();
+      if (!name) return;
+
+      const guestDiv = document.createElement('div');
+      guestDiv.classList.add('athlete-name');
+      guestDiv.textContent = name;
+      guestDiv.draggable = true;
+      guestDiv.dataset.athleteId = '';  // blank ID
+      guestDiv.dataset.athleteName = name;
+      guestDiv.dataset.mw = '';  // optional
+
+      guestDiv.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('athlete-id', '');
+        e.dataTransfer.setData('athlete-name', name);
+        e.dataTransfer.setData('athlete-mw', '');
+      });
+
+      guestList.appendChild(guestDiv);
+      guestInput.value = '';
+    }
+  });
+
+
   const assignedAthletes = new Set();
 
   // Wire up delete buttons
@@ -448,6 +482,13 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       const athleteElem = document.querySelector(`.athlete-name[data-athlete-id="${id}"]`);
+
+      if (!id && athleteElem) {
+        // It's a guest — remove it from the guest list
+        athleteElem.remove();
+      }
+
+
       if (athleteElem) {
         athleteElem.style.opacity = 0.4;
         athleteElem.style.pointerEvents = 'none';

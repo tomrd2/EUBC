@@ -113,6 +113,8 @@ def add_crew(outing_id):
 
     hull_id = None
 
+    print("Hull name: ",hull_name)
+
     # Check if this hull name matches a known Hull
     conn = get_db_connection()
     with conn.cursor() as cursor:
@@ -120,6 +122,7 @@ def add_crew(outing_id):
         match = cursor.fetchone()
         if match:
             hull_id = match['Hull_ID']
+            print("New Hull_ID: ", hull_id)
 
         cursor.execute("""
             INSERT INTO Crews (Outing_ID, Hull_ID, Hull_Name, Boat_Type, Crew_Name)
@@ -161,6 +164,28 @@ def publish_lineup(outing_id):
     conn.close()
 
     return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+
+@socketio.on('crew_update')
+def handle_crew_update(data):
+    crew_id = data['crew_id']
+    field = data['field']
+    value = data['value']
+
+    if field not in ['Hull_Name', 'Boat_Type', 'Crew_Name']:
+        print("❌ Invalid field:", field)
+        return
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute(f"""
+            UPDATE Crews SET {field} = %s WHERE Crew_ID = %s
+        """, (value, crew_id))
+        conn.commit()
+    conn.close()
+
+    # Notify all connected clients of the update
+    emit('crew_field_updated', data, broadcast=True)
+
 
 @socketio.on('join_outing')
 def handle_join_outing(data):
