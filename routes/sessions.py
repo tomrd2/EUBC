@@ -169,18 +169,22 @@ def edit_session(session_id):
             cursor.execute("""
                 UPDATE Sessions SET
                     Session_Date=%s, Activity=%s, Duration=%s, Distance=%s,
-                    Split=%s, Type=%s, Weight=%s, Comment=%s
+                    Split=%s, Type=%s, Weight=%s, Comment=%s, Athlete_ID=%s
                 WHERE Session_ID = %s
             """, (
                 data['session_date'], data['activity'], data['duration'],
                 data['distance'], data['split'], data['type'],
-                data['weight'], data['comment'], session_id
+                data['weight'], data['comment'], data['athlete_id'], session_id
             ))
             conn.commit()
-            conn.close()
             return redirect(url_for('sessions.sessions'))
 
         cursor.execute("SELECT * FROM Sessions WHERE Session_ID = %s", (session_id,))
         session_data = cursor.fetchone()
+
+        cursor.execute("SELECT * FROM Athletes WHERE Coach IS NULL")
+        athletes = cursor.fetchall()
+
     conn.close()
-    return render_template('session_form.html', session=session_data, is_coach=True)
+    return render_template('session_form.html', session=session_data, is_coach=True, athletes=athletes)
+

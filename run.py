@@ -77,10 +77,7 @@ def login():
 
         if user and check_password_hash(user['Password_Hash'], password):
             login_user(User(user))
-            if user['Coach']:
-                return redirect(url_for('coach_home'))
-            else:
-                return redirect(url_for('athlete_home'))
+            return redirect(url_for('app_home'))
         else:
             return "Invalid credentials", 401
 
@@ -88,15 +85,8 @@ def login():
 
 @app.route('/')
 @login_required
-def coach_home():
-    if not current_user.coach:
-        return render_template('athlete_home.html', user=current_user)
+def app_home():
     return render_template('index.html', user=current_user)
-
-@app.route('/athlete_home')
-@login_required
-def athlete_home():
-    return render_template('athlete_home.html', user=current_user)
 
 @app.route('/logout')
 @login_required
@@ -145,10 +135,8 @@ def change_password():
         conn.close()
 
         flash('Password changed successfully.', 'success')
-        if current_user.coach:
-            return redirect(url_for('coach_home'))
-        else:
-            return redirect(url_for('athlete_home'))
+
+        return redirect(url_for('app_home'))
 
     return render_template('change_password.html')
 

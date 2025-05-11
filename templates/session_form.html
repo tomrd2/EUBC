@@ -61,7 +61,7 @@
 <body>
   <header style="display: flex; justify-content: space-between; align-items: center; background-color: #001f3f; color: white; padding: 10px 20px; border-radius: 8px;">
     <div style="display: flex; align-items: center;">
-      <a href="{{ url_for('coach_home') if current_user.coach else url_for('athlete_home') }}">
+      <a href="{{ url_for('app_home') }}">
         <img src="{{ url_for('static', filename='EUBC_Logo.png') }}" alt="Logo" style="height: 50px; margin-right: 20px;">
       </a>
       <h1 style="margin: 0;">EUBC Data</h1>
@@ -85,7 +85,7 @@
                 <option value="">-- Select Athlete --</option>
                 {% for athlete in athletes %}
                   <option value="{{ athlete.Athlete_ID }}"
-                  {% if session and (session['Athlete_ID'] == athlete['Athlete_ID']) %}selected{% endif %}selected{% endif %}>
+                    {% if session and session.Athlete_ID == athlete.Athlete_ID %}selected{% endif %}>
                     {{ athlete.Full_Name }}
                   </option>
                 {% endfor %}
@@ -150,7 +150,13 @@
         </tbody>
       </table>
   
-      <button class="btn" type="submit">Save</button>
+      <tr>
+        <td></td>
+        <td style="display: flex; gap: 10px;">
+          <button class="btn" type="submit">💾 Save</button>
+          <a class="btn" href="{{ url_for('sessions.sessions') }}">Cancel</a>
+        </td>
+      </tr>
     </form>
   </div>
   
