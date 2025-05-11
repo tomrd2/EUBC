@@ -3,15 +3,60 @@
 <head>
   <title>EUBC Data App</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-image: url('{{ url_for("static", filename="background.jpg") }}');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .menu-container {
+      margin-top: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+    }
+
+    .menu-container a {
+      display: block;
+      width: 250px;
+      padding: 15px;
+      font-size: 18px;
+      text-align: center;
+      background-color: rgba(0, 31, 63, 0.85); /* EUBC navy with transparency */
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: background-color 0.3s;
+    }
+
+    .menu-container a:hover {
+      background-color: rgba(0, 31, 63, 1);
+    }
+  </style>
 </head>
 <body>
   {% include "_header.html" %}
 
-<form action="{{ url_for('login') }}" method="post">
-  <input type="email" name="email" placeholder="Email" required>
-  <input type="password" name="password" placeholder="Password" required>
-  <button type="submit">Login</button>
-</form>
+  <div class="menu-container">
+    <form action="{{ url_for('login') }}" method="post">
+      <input type="email" name="email" placeholder="Email" required><br>
+      <input type="password" name="password" placeholder="Password" required><br>
+      <button type="submit">Login</button>
+    </form>
+
+  </div>
 
 </body>
 </html>
+
