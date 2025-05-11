@@ -113,8 +113,6 @@ def add_crew(outing_id):
 
     hull_id = None
 
-    print("Hull name: ",hull_name)
-
     # Check if this hull name matches a known Hull
     conn = get_db_connection()
     with conn.cursor() as cursor:
@@ -177,13 +175,32 @@ def handle_crew_update(data):
 
     conn = get_db_connection()
     with conn.cursor() as cursor:
-        cursor.execute(f"""
-            UPDATE Crews SET {field} = %s WHERE Crew_ID = %s
-        """, (value, crew_id))
+        if field == 'Hull_Name':
+            # Look up Hull_ID from Hulls table
+            cursor.execute("SELECT Hull_ID FROM Hulls WHERE Hull_Name = %s", (value,))
+            hull = cursor.fetchone()
+
+            if hull:
+                hull_id = hull['Hull_ID']
+                cursor.execute("""
+                    UPDATE Crews SET Hull_Name = %s, Hull_ID = %s WHERE Crew_ID = %s
+                """, (value, hull_id, crew_id))
+                print(f"✅ Updated Hull_Name to '{value}' and Hull_ID to {hull_id} for Crew_ID {crew_id}")
+            else:
+                cursor.execute("""
+                    UPDATE Crews SET Hull_Name = %s, Hull_ID = NULL WHERE Crew_ID = %s
+                """, (value, crew_id))
+                print(f"⚠️ Hull_Name '{value}' not found, set Hull_ID to NULL for Crew_ID {crew_id}")
+        else:
+            cursor.execute(f"""
+                UPDATE Crews SET {field} = %s WHERE Crew_ID = %s
+            """, (value, crew_id))
+            print(f"✅ Updated {field} to '{value}' for Crew_ID {crew_id}")
+
         conn.commit()
     conn.close()
 
-    # Notify all connected clients of the update
+    # Broadcast update to all other clients
     emit('crew_field_updated', data, broadcast=True)
 
 

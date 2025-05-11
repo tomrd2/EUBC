@@ -269,6 +269,14 @@ socket.on('seat_cleared', data => {
   }
 });
 
+socket.on('crew_field_updated', data => {
+  const input = document.querySelector(`.crew-edit[data-crew-id="${data.crew_id}"][data-field="${data.field}"]`);
+  if (input && document.activeElement !== input) {
+    input.value = data.value;  // avoid overwriting what someone is currently editing
+  }
+});
+
+
 document.addEventListener('DOMContentLoaded', () => {
   const guestInput = document.getElementById('guest-input');
   const guestList = document.getElementById('guest-list');
