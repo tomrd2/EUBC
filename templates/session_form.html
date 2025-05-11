@@ -3,6 +3,60 @@
 <head>
   <title>{{ session and "Edit Session" or "New Session" }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .form-card {
+      max-width: 600px;
+      margin: 30px auto;
+      background: #f9f9f9;
+      padding: 20px 24px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      font-size: 14px;
+    }
+  
+    .form-card table {
+      width: 100%;
+      border-spacing: 0;
+    }
+  
+    .form-card td {
+      padding: 6px 8px;
+      vertical-align: middle;
+    }
+  
+    .form-card input,
+    .form-card select,
+    .form-card textarea {
+      width: 100%;
+      padding: 5px 6px;
+      font-size: 13px;
+      box-sizing: border-box;
+      border-radius: 4px;
+      border: 1px solid #bbb;
+    }
+  
+    .form-card textarea {
+      resize: vertical;
+      height: 60px;
+    }
+  
+    .form-card button.btn {
+      margin-top: 10px;
+      background-color: #0074D9;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  
+    .form-card button.btn:hover {
+      background-color: #005fa3;
+    }
+  </style>
+  
 </head>
 <body>
   <header style="display: flex; justify-content: space-between; align-items: center; background-color: #001f3f; color: white; padding: 10px 20px; border-radius: 8px;">
@@ -19,57 +73,87 @@
   </header>
 
   <h2>{{ session and "Edit Session" or "New Session" }}</h2>
-  <form method="POST">
-    {% if is_coach %}
-    <label for="athlete_id">Athlete:</label>
-    <select name="athlete_id" required>
-      <option value="">-- Select Athlete --</option>
-      {% for athlete in athletes %}
-        <option value="{{ athlete.Athlete_ID }}"
-          {% if session and session.Athlete_ID == athlete.Athlete_ID %}selected{% endif %}>
-          {{ athlete.Full_Name }}
-        </option>
-      {% endfor %}
-    </select>
-  {% endif %}
-
-    <label>Date:</label>
-    <input type="date" name="session_date" value="{{ session.Session_Date if session else '' }}" required>
-
-    <label for="activity">Activity:</label>
-    <select name="activity" required>
-      {% set activity_list = ['Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike', 'Brisk Walk' ,'Other'] %}
-      {% for option in activity_list %}
-        <option value="{{ option }}"
-          {% if session and session.Activity == option %}selected{% endif %}>{{ option }}</option>
-      {% endfor %}
-    </select>
-
-    <label>Duration:</label>
-    <input type="time" name="duration" value="{{ session.Duration if session else '' }}">
-
-    <label>Distance (m):</label>
-    <input type="number" name="distance" value="{{ session.Distance if session else '' }}">
-
-    <label>Split Time:</label>
-    <input type="time" name="split" value="{{ session.Split if session else '' }}">
-
-    <label for="type">Type:</label>
-    <select name="type" required>
-      {% set type_list = ['Test', 'Intervals', 'UT2', 'UT1', 'Cross-Training', 'Other'] %}
-      {% for option in type_list %}
-        <option value="{{ option }}"
-          {% if session and session.Type == option %}selected{% endif %}>{{ option }}</option>
-      {% endfor %}
-    </select>
-
-    <label>Weight (kg):</label>
-    <input type="number" step="0.1" name="weight" value="{{ session.Weight if session else '' }}">
-
-    <label>Comment:</label>
-    <textarea name="comment">{{ session.Comment if session else '' }}</textarea>
-
-    <button class="btn" type="submit">Save</button>
-  </form>
+  <div class="form-card">
+    <form method="POST">
+      <table>
+        <tbody>
+          {% if is_coach %}
+          <tr>
+            <td><label for="athlete_id">Athlete:</label></td>
+            <td>
+              <select name="athlete_id" required>
+                <option value="">-- Select Athlete --</option>
+                {% for athlete in athletes %}
+                  <option value="{{ athlete.Athlete_ID }}"
+                  {% if session and (session['Athlete_ID'] == athlete['Athlete_ID']) %}selected{% endif %}selected{% endif %}>
+                    {{ athlete.Full_Name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endif %}
+  
+          <tr>
+            <td><label for="session_date">Date:</label></td>
+            <td><input type="date" name="session_date" value="{{ session.Session_Date if session else '' }}" required></td>
+          </tr>
+  
+          <tr>
+            <td><label for="activity">Activity:</label></td>
+            <td>
+              <select name="activity" required>
+                {% for option in ['Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike', 'Brisk Walk', 'Other'] %}
+                  <option value="{{ option }}"
+                    {% if session and session.Activity == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+  
+          <tr>
+            <td><label for="duration">Duration:</label></td>
+            <td><input type="time" name="duration" value="{{ session.Duration if session else '' }}"></td>
+          </tr>
+  
+          <tr>
+            <td><label for="distance">Distance (m):</label></td>
+            <td><input type="number" name="distance" value="{{ session.Distance if session else '' }}"></td>
+          </tr>
+  
+          <tr>
+            <td><label for="split">Split Time:</label></td>
+            <td><input type="time" name="split" value="{{ session.Split if session else '' }}"></td>
+          </tr>
+  
+          <tr>
+            <td><label for="type">Type:</label></td>
+            <td>
+              <select name="type" required>
+                {% for option in ['Test', 'Intervals', 'UT2', 'UT1', 'Cross-Training', 'Other'] %}
+                  <option value="{{ option }}"
+                    {% if session and session.Type == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+  
+          <tr>
+            <td><label for="weight">Weight (kg):</label></td>
+            <td><input type="number" step="0.1" name="weight" value="{{ session.Weight if session else '' }}"></td>
+          </tr>
+  
+          <tr>
+            <td><label for="comment">Comment:</label></td>
+            <td><textarea name="comment">{{ session.Comment if session else '' }}</textarea></td>
+          </tr>
+        </tbody>
+      </table>
+  
+      <button class="btn" type="submit">Save</button>
+    </form>
+  </div>
+  
+  
 </body>
 </html>

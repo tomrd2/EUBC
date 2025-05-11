@@ -8,6 +8,9 @@
   {% include "_header.html" %}
     {% if current_user.coach: %}
         <form action="/add_piece" method="post">
+
+            <a href="{{ url_for('outings.outings') }}" class="btn" style="margin-right: 15px;">← Back</a>
+
             <input type="hidden" name="Outing_ID" value="{{ outing_id }}">
             <input type="integer" name="Distance" placeholder="Distance (m)">
             <input type="integer" name="Rate_Cap" placeholder="Rate Cap">

@@ -221,5 +221,24 @@ body {
   td.center {
     text-align: center;
 }
+
+table td {
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+table input,
+table select,
+table textarea {
+  margin: 0;
+  padding: 4px;
+  font-size: 14px;
+}
+
+table textarea {
+  resize: vertical;
+  height: 60px;
+}
+
   
   

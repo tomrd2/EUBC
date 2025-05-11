@@ -43,16 +43,21 @@
   {% include "_header.html" %}
 
   <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+    <div>
+      <a href="{{ url_for('outings.outings') }}" class="btn" style="margin-right: 15px;">← Back</a>
+    </div>
     <h2 style="color: #001f3f; margin: 0;">
       Line-Up for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>
     </h2>
-    {% if outing.Published ==1 %}
-      <h3>Published</h3>
-    {% else %}
-      <form method="POST" action="{{ url_for('lineups.publish_lineup', outing_id=outing.Outing_ID) }}">
-        <button class="btn" type="submit">📢 Publish</button>
-      </form>
-    {% endif %}
+    <div>
+      {% if outing.Published == 1 %}
+        <h3 style="margin: 0;">Published</h3>
+      {% else %}
+        <form method="POST" action="{{ url_for('lineups.publish_lineup', outing_id=outing.Outing_ID) }}">
+          <button class="btn" type="submit">📢 Publish</button>
+        </form>
+      {% endif %}
+    </div>
   </div>
 
   {% if current_user.coach %}
