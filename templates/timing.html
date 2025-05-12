@@ -33,6 +33,7 @@
       <td>{{ result.Crew_Name }}</td>
 
       <td>
+        <input type="checkbox" class="sync-checkbox" data-crew-id="{{ result.Crew_ID }}" style="margin-right: 4px;">
         <input type="time" step="0.1" class="editable" data-field="Start" 
           data-crew-id="{{ result.Crew_ID }}" data-piece-id="{{ result.Piece_ID }}"
           value="{{ result.Start_formatted }}">
@@ -126,6 +127,66 @@ document.addEventListener('DOMContentLoaded', () => {
             const crewId = input.dataset.crewId;
             socket.emit('result_update', { field, value, piece_id: pieceId, crew_id: crewId });
 
+            if (field === 'Start') {
+              const newValue = input.value;
+              const editedCrewId = input.dataset.crewId;
+              const editedCheckbox = document.querySelector(`.sync-checkbox[data-crew-id="${editedCrewId}"]`);
+
+              // Only sync to other crews if the edited crew is checked
+              if (editedCheckbox && editedCheckbox.checked) {
+                  document.querySelectorAll('.sync-checkbox:checked').forEach(cb => {
+                      const crewId = cb.dataset.crewId;
+                      if (crewId === editedCrewId) return;
+
+                      const targetInput = document.querySelector(`.editable[data-field="Start"][data-crew-id="${crewId}"]`);
+                      if (targetInput) {
+                          targetInput.value = newValue;
+
+                          socket.emit('result_update', {
+                              field: 'Start',
+                              value: newValue,
+                              piece_id: input.dataset.pieceId,
+                              crew_id: crewId
+                          });
+
+                          const row = targetInput.closest('tr');
+                          const finishInput = row.querySelector('[data-field="Finish"]');
+                          const timeInput = row.querySelector('[data-field="Time"]');
+                          const gmtInput = row.querySelector('.GMT');
+
+                          const finishVal = finishInput?.value;
+                          if (finishVal) {
+                              const calculatedTime = calculateTime(newValue, finishVal);
+                              if (calculatedTime) {
+                                  timeInput.value = calculatedTime;
+                                  socket.emit('result_update', {
+                                      field: 'Time',
+                                      value: calculatedTime,
+                                      piece_id: input.dataset.pieceId,
+                                      crew_id: crewId
+                                  });
+
+                                  const gmt = parseFloat(timeInput.dataset.gmt);
+                                  const distance = parseFloat(timeInput.dataset.distance);
+                                  const pct = calculateGmtPercent(gmt, distance, calculatedTime);
+                                  if (gmtInput && pct !== '') {
+                                      gmtInput.value = pct + '%';
+                                      socket.emit('result_update', {
+                                          field: 'GMT_Percent',
+                                          value: pct,
+                                          piece_id: input.dataset.pieceId,
+                                          crew_id: crewId
+                                      });
+                                  }
+                              }
+                          }
+                      }
+                  });
+              }
+          }
+
+
+
             if (field === 'Start' || field === 'Finish') {
                 const row = input.closest('tr');
                 const startInput = row.querySelector('[data-field="Start"]');
@@ -183,37 +244,60 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.querySelectorAll('.now-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            const field = button.dataset.target;
-            const crewId = button.dataset.crewId;
-            const pieceId = button.dataset.pieceId;
+  document.querySelectorAll('.now-btn').forEach(button => {
+    button.addEventListener('click', () => {
+        const field = button.dataset.target;
+        const clickedCrewId = button.dataset.crewId;
+        const pieceId = button.dataset.pieceId;
 
-            const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const seconds = now.getSeconds().toString().padStart(2, '0');
-            const tenths = Math.floor(now.getMilliseconds() / 100);
-            const timeStr = `${hours}:${minutes}:${seconds}.${tenths}`;
+        const now = new Date();
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
+        const tenths = Math.floor(now.getMilliseconds() / 100);
+        const timeStr = `${hours}:${minutes}:${seconds}.${tenths}`;
 
-            const row = button.closest('tr');
-            const input = row.querySelector(`input[data-field="${field}"]`);
+        const clickedCheckbox = document.querySelector(`.sync-checkbox[data-crew-id="${clickedCrewId}"]`);
+        let targetCrewIds = [];
+
+        if (field === 'Start' && clickedCheckbox && clickedCheckbox.checked) {
+            // Sync start time for all checked crews
+            document.querySelectorAll('.sync-checkbox:checked').forEach(cb => {
+                targetCrewIds.push(cb.dataset.crewId);
+            });
+        } else {
+            // Only update clicked crew
+            targetCrewIds.push(clickedCrewId);
+        }
+
+        targetCrewIds.forEach(crewId => {
+            const input = document.querySelector(`.editable[data-field="${field}"][data-crew-id="${crewId}"]`);
+            if (!input) return;
+
+            const row = input.closest('tr');
             input.value = timeStr;
 
             socket.emit('result_update', { field, value: timeStr, piece_id: pieceId, crew_id: crewId });
 
             const startVal = row.querySelector('[data-field="Start"]').value;
             const finishVal = row.querySelector('[data-field="Finish"]').value;
+            const timeInput = row.querySelector('[data-field="Time"]');
+            const gmtInput = row.querySelector('.GMT');
+
             if (startVal && finishVal) {
                 const calculatedTime = calculateTime(startVal, finishVal);
                 if (calculatedTime) {
-                    const timeInput = row.querySelector('[data-field="Time"]');
                     timeInput.value = calculatedTime;
-                    socket.emit('result_update', { field: 'Time', value: calculatedTime, piece_id: pieceId, crew_id: crewId });
+                    socket.emit('result_update', {
+                        field: 'Time',
+                        value: calculatedTime,
+                        piece_id: pieceId,
+                        crew_id: crewId
+                    });
+
                     const gmt = parseFloat(timeInput.dataset.gmt);
                     const distance = parseFloat(timeInput.dataset.distance);
                     const gmtPct = calculateGmtPercent(gmt, distance, calculatedTime);
-                    const gmtInput = row.querySelector('.GMT');
                     if (gmtInput && gmtPct !== '') {
                         gmtInput.value = gmtPct + '%';
                         socket.emit('result_update', {
@@ -227,6 +311,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+});
+
 
     socket.on('result_updated', (data) => {
         const input = document.querySelector(`.editable[data-field="${data.field}"][data-crew-id="${data.crew_id}"]`);
