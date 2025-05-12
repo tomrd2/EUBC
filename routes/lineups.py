@@ -19,15 +19,15 @@ def lineup_view(outing_id):
         outing = cursor.fetchone()
 
         # Get athletes by group
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Stroke' AND Coach IS NULL ORDER BY Full_Name")
+        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Stroke' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
         strokes = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Bow' AND Coach IS NULL ORDER BY Full_Name")
+        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Bow' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
         bows = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Both' AND Coach IS NULL ORDER BY Full_Name")
+        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Both' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
         boths = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Neither' AND Coach IS NULL ORDER BY Full_Name")
+        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Neither' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
         neithers = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Cox' AND Coach IS NULL ORDER BY Full_Name")
+        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Cox' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
         coxes = cursor.fetchall()
 
     with conn.cursor() as cursor:
@@ -57,7 +57,7 @@ def lineup_view(outing_id):
             WHERE Hull_ID NOT IN (
                 SELECT DISTINCT Hull_ID FROM Crews WHERE Outing_ID = %s AND Hull_ID IS NOT NULL
             )
-            ORDER BY Hull_Name
+            ORDER BY Boat_Type DESC
             """, (outing_id,))
         available_hulls = cursor.fetchall()
 

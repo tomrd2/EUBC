@@ -4,6 +4,14 @@ from db import get_db_connection
 
 results_bp = Blueprint('results', __name__)
 
+def format_timedelta(td):
+    if not td:
+        return None
+    total_seconds = td.total_seconds()
+    minutes = int(total_seconds // 60)
+    seconds = total_seconds % 60
+    return f"{minutes:02d}:{seconds:05.2f}"
+
 @results_bp.route('/results/<int:outing_id>')
 @login_required
 def results_view(outing_id):
@@ -58,7 +66,9 @@ def results_view(outing_id):
     from collections import defaultdict
     results_by_piece = defaultdict(list)
     for row in raw_results:
+        row['Time'] = format_timedelta(row['Time'])
         results_by_piece[row['Piece_ID']].append(row)
+        
 
     # Sort results for each piece by descending GMT_Percent
     for piece_id, crew_list in results_by_piece.items():

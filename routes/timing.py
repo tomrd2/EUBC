@@ -37,7 +37,7 @@ def timing_view(piece_id):
         outing_id = piece['Outing_ID']
         piece_description = piece['Description']
 
-        cursor.execute("SELECT Outing_Date, Outing_Name FROM Outings WHERE Outing_ID = %s", (outing_id,))
+        cursor.execute("SELECT Outing_ID, Outing_Date, Outing_Name FROM Outings WHERE Outing_ID = %s", (outing_id,))
         outing = cursor.fetchone()
 
         # Get all Crew_IDs for the outing
@@ -65,7 +65,7 @@ def timing_view(piece_id):
 
         # Fetch all Results JOINED with Crews
         cursor.execute("""
-            SELECT r.*, c.Hull_Name, c.Crew_Name, c.Boat_Type, p.Distance
+            SELECT r.*, c.Hull_Name, c.Crew_Name, c.Boat_Type, p.Distance, p.Outing_ID
             FROM Results r
             JOIN Crews c ON r.Crew_ID = c.Crew_ID
             JOIN Pieces p ON r.Piece_ID = p.Piece_ID

@@ -12,7 +12,7 @@ athletes_bp = Blueprint('athletes', __name__)
 def athletes():
     conn = get_db_connection()
     with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM Athletes where Coach IS NULL")
+        cursor.execute("SELECT * FROM Athletes ORDER By Coach, Full_Name")
         data = cursor.fetchall()
     conn.close()
     return render_template('athletes.html', athletes=data)

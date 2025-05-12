@@ -40,7 +40,7 @@
     <thead>
       <tr>
         <th>ID</th><th>Name</th><th>Initials</th><th>Gender</th><th>Side</th>
-        <th>Sculls</th><th>Joined</th><th>Email</th><th>Action</th>
+        <th>Sculls</th><th>Coach</th><th>Joined</th><th>Email</th><th>Action</th>
       </tr>
     </thead>
     <tbody>
@@ -67,6 +67,9 @@
             </td>
           <td>            
             <input type="checkbox" name="Sculls" value="1" {% if athlete.Sculls %}checked{% endif %}>
+          </td>
+          <td>            
+            <input type="checkbox" name="Coach" value="1" {% if athlete.Coach %}checked{% endif %}>
           </td>
           
           <td><input type="date" name="Joined" value="{{ athlete.Joined }}"></td>
