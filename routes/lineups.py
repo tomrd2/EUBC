@@ -203,6 +203,32 @@ def handle_crew_update(data):
     # Broadcast update to all other clients
     emit('crew_field_updated', data, broadcast=True)
 
+@socketio.on('assign_seat')
+def handle_assign_seat(data):
+    outing_id = data['outing_id']
+    crew_id = data['crew_id']
+    seat = data['seat']
+    athlete_id = data['athlete_id']
+    athlete_name = data['athlete_name']
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        # Remove any existing seat with same crew+seat
+        cursor.execute("""
+            DELETE FROM Seats WHERE Crew_ID = %s AND Seat = %s
+        """, (crew_id, seat))
+
+        # Insert new assignment
+        cursor.execute("""
+            INSERT INTO Seats (Crew_ID, Seat, Athlete_ID, Athlete_Name)
+            VALUES (%s, %s, %s, %s)
+        """, (crew_id, seat, athlete_id, athlete_name))
+
+        conn.commit()
+    conn.close()
+
+    emit('seat_updated', data, room=f'outing_{outing_id}')
+
 
 @socketio.on('join_outing')
 def handle_join_outing(data):

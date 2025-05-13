@@ -77,6 +77,7 @@ def login():
 
         if user and check_password_hash(user['Password_Hash'], password):
             login_user(User(user))
+            print(current_user.name + " logged in")
             return redirect(url_for('app_home'))
         else:
             return "Invalid credentials", 401
