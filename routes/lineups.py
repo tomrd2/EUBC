@@ -83,6 +83,16 @@ def lineup_view(outing_id):
                 seat_number = seat['Seat']
                 seat_assignments[crew_id][str(seat_number)] = seat
 
+        with conn.cursor() as cursor:     
+            # Get recent outings (last 30 days) excluding current outing
+            cursor.execute("""
+                SELECT Outing_ID, Outing_Date, Outing_Name
+                FROM Outings
+                WHERE Outing_Date >= CURDATE() - INTERVAL 30 DAY
+                ORDER BY Outing_Date DESC
+            """)
+            recent_outings = cursor.fetchall()
+
     conn.close()
 
     return render_template(
@@ -97,7 +107,8 @@ def lineup_view(outing_id):
         crews=crews,
         available_hulls=available_hulls,
         assigned_seats=assigned_seats,
-        seat_assignments=seat_assignments
+        seat_assignments=seat_assignments,
+        recent_outings=recent_outings
     )
 
 @lineups_bp.route('/add_crew/<int:outing_id>', methods=['POST'])
@@ -142,8 +153,8 @@ def handle_delete_crew(data):
 
     conn = get_db_connection()
     with conn.cursor() as cursor:
-        cursor.execute("DELETE FROM Crews WHERE Crew_ID = %s", (crew_id,))
         cursor.execute("DELETE FROM Seats WHERE Crew_ID = %s", (crew_id,))
+        cursor.execute("DELETE FROM Crews WHERE Crew_ID = %s", (crew_id,))
         conn.commit()
     conn.close()
 
@@ -228,6 +239,63 @@ def handle_assign_seat(data):
     conn.close()
 
     emit('seat_updated', data, room=f'outing_{outing_id}')
+
+@lineups_bp.route('/clone_lineup/<int:outing_id>', methods=['POST'])
+@login_required
+def clone_lineup(outing_id):
+    source_outing_id = request.form.get('source_outing_id')
+
+    if not current_user.coach or not source_outing_id:
+        return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        # Step 1: Delete current crews/seats
+        cursor.execute("""
+            DELETE FROM Seats WHERE Crew_ID IN (
+                SELECT Crew_ID FROM Crews WHERE Outing_ID = %s
+            )
+        """, (outing_id,))
+        cursor.execute("DELETE FROM Crews WHERE Outing_ID = %s", (outing_id,))
+
+        # Step 2: Fetch source crews
+        cursor.execute("""
+            SELECT Crew_ID, Hull_ID, Hull_Name, Boat_Type, Crew_Name
+            FROM Crews
+            WHERE Outing_ID = %s
+        """, (source_outing_id,))
+        source_crews = cursor.fetchall()
+
+        crew_id_map = {}
+
+        # Step 3: Insert each crew and track new IDs
+        for crew in source_crews:
+            cursor.execute("""
+                INSERT INTO Crews (Outing_ID, Hull_ID, Hull_Name, Boat_Type, Crew_Name)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (outing_id, crew['Hull_ID'], crew['Hull_Name'], crew['Boat_Type'], crew['Crew_Name']))
+            new_crew_id = cursor.lastrowid
+            crew_id_map[crew['Crew_ID']] = new_crew_id
+
+        # Step 4: Clone Seats
+        for old_crew_id, new_crew_id in crew_id_map.items():
+            cursor.execute("""
+                SELECT Seat, Athlete_ID, Athlete_Name
+                FROM Seats
+                WHERE Crew_ID = %s
+            """, (old_crew_id,))
+            seats = cursor.fetchall()
+            for seat in seats:
+                cursor.execute("""
+                    INSERT INTO Seats (Crew_ID, Seat, Athlete_ID, Athlete_Name)
+                    VALUES (%s, %s, %s, %s)
+                """, (new_crew_id, seat['Seat'], seat['Athlete_ID'], seat['Athlete_Name']))
+
+        conn.commit()
+    conn.close()
+
+    return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+
 
 
 @socketio.on('join_outing')
