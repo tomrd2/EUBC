@@ -6,54 +6,79 @@ import csv
 
 sessions_bp = Blueprint('sessions', __name__)
 
+from flask import request
+
 @sessions_bp.route('/sessions')
 @login_required
 def sessions():
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    athlete_id = request.args.get('athlete_id')
+    activity = request.args.get('activity')
+    session_type = request.args.get('type')
+
+    filters = []
+    params = []
+
+    if current_user.coach:
+        if athlete_id:
+            filters.append("s.Athlete_ID = %s")
+            params.append(athlete_id)
+    else:
+        filters.append("s.Athlete_ID = %s")
+        params.append(current_user.id)
+
+    if activity:
+        filters.append("s.Activity = %s")
+        params.append(activity)
+
+    if session_type:
+        filters.append("s.Type = %s")
+        params.append(session_type)
+
+    if from_date:
+        filters.append("s.Session_Date >= %s")
+        params.append(from_date)
+
+    if to_date:
+        filters.append("s.Session_Date <= %s")
+        params.append(to_date)
+
+    where_clause = " AND ".join(filters)
+    if where_clause:
+        where_clause = "WHERE " + where_clause
+
+    query = f"""
+        SELECT s.*, a.Full_Name
+        FROM Sessions s
+        JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID
+        {where_clause}
+        ORDER BY s.Session_Date DESC
+    """
+
     conn = get_db_connection()
     with conn.cursor() as cursor:
-        athlete_list = []
-        filters = []
-        query = """
-            SELECT s.*, a.Full_Name
-            FROM Sessions s
-            JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID
-            WHERE 1=1
-        """
+        cursor.execute(query, params)
+        sessions = cursor.fetchall()
 
         if current_user.coach:
-            if 'athlete_id' in request.args and request.args['athlete_id']:
-                query += " AND s.Athlete_ID = %s"
-                filters.append(request.args['athlete_id'])
+            cursor.execute("SELECT Athlete_ID, Full_Name FROM Athletes ORDER BY Full_Name")
+            athletes = cursor.fetchall()
         else:
-            query += " AND s.Athlete_ID = %s"
-            filters.append(current_user.id)
-
-        if 'activity' in request.args and request.args['activity']:
-            query += " AND s.Activity = %s"
-            filters.append(request.args['activity'])
-
-        if 'type' in request.args and request.args['type']:
-            query += " AND s.Type = %s"
-            filters.append(request.args['type'])
-
-        query += " ORDER BY s.Session_Date DESC"
-        cursor.execute(query, filters)
-        session_data = cursor.fetchall()
-
-        if current_user.coach:
-            cursor.execute("SELECT Athlete_ID, Full_Name FROM Athletes ORDER BY Full_Name ASC")
-            athlete_list = cursor.fetchall()
+            athletes = []
 
     conn.close()
 
-    return render_template(
-        'sessions.html',
-        sessions=session_data,
-        athletes=athlete_list,
-        selected_athlete=request.args.get('athlete_id', ''),
-        selected_activity=request.args.get('activity', ''),
-        selected_type=request.args.get('type', '')
+    return render_template('sessions.html',
+        sessions=sessions,
+        athletes=athletes,
+        selected_athlete=athlete_id,
+        selected_activity=activity,
+        selected_type=session_type,
+        from_date=from_date,
+        to_date=to_date
     )
+
 
 @sessions_bp.route('/sessions/new', methods=['GET', 'POST'])
 @login_required

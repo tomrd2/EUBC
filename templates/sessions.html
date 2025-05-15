@@ -20,14 +20,20 @@
 
   <h2>Training Sessions</h2>
 
-  <form method="GET" action="{{ url_for('sessions.sessions') }}">
+  <form method="GET" action="{{ url_for('sessions.sessions') }}" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+
+    <label for="from_date">From:</label>
+    <input type="date" name="from_date" value="{{ from_date or '' }}">
+  
+    <label for="to_date">To:</label>
+    <input type="date" name="to_date" value="{{ to_date or '' }}">
+  
     {% if current_user.coach %}
       <label for="athlete_id">Athlete:</label>
       <select name="athlete_id">
         <option value="">-- All Athletes --</option>
         {% for a in athletes %}
-          <option value="{{ a.Athlete_ID }}"
-            {% if selected_athlete == a.Athlete_ID|string %}selected{% endif %}>
+          <option value="{{ a.Athlete_ID }}" {% if selected_athlete == a.Athlete_ID|string %}selected{% endif %}>
             {{ a.Full_Name }}
           </option>
         {% endfor %}
@@ -51,17 +57,14 @@
     </select>
   
     <button class="btn" type="submit">Filter</button>
-  
-    {% if current_user.coach or not current_user.coach %}
-      <button class="btn" type="submit" formaction="{{ url_for('sessions.download_sessions_csv') }}">Download CSV</button>
+    {% if current_user.coach %}
+      <a class="btn" href="{{ url_for('sessions.add_session') }}">Add New Session</a>
+    {% else %}
+      <a class="btn" href="{{ url_for('sessions.add_session') }}">Log New Session</a>
     {% endif %}
-  </form>
   
-  {% if current_user.coach %}
-    <a class="btn" href="{{ url_for('sessions.add_session') }}">Add New Session</a>
-  {% else %}
-    <a class="btn" href="{{ url_for('sessions.add_session') }}">Log New Session</a>
-  {% endif %}
+    <button class="btn" type="submit" formaction="{{ url_for('sessions.download_sessions_csv') }}">Download CSV</button>
+  </form>
 
   <table>
     <thead>
