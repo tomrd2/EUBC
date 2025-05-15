@@ -38,15 +38,15 @@ body {
   }
   
   form {
-    margin-top: 20px;
+    margin-top: 0px;
     background: white;
-    padding: 15px;
-    border-radius: 8px;
+    padding: 0px;
+    border-radius: 0px;
   }
   
   input, select {
     padding: 5px;
-    margin: 5px;
+    margin: 0px;
   }
   
   .btn {

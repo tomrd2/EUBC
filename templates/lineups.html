@@ -47,8 +47,16 @@
   {% include "_header.html" %}
 
   <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;">
-    <div>
-      <a href="{{ url_for('outings.outings') }}" class="btn" style="margin-right: 5px;">← Back</a>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="{{ url_for('outings.outings') }}" class="btn">← Back</a>
+    
+      <form method="GET" action="{{ url_for('lineups.lineup_view', outing_id=outing_id) }}">
+        <select name="gender" onchange="this.form.submit()" class="btn">
+          <option value="all" {% if gender_filter == 'all' %}selected{% endif %}>All</option>
+          <option value="M" {% if gender_filter == 'M' %}selected{% endif %}>Men</option>
+          <option value="W" {% if gender_filter == 'W' %}selected{% endif %}>Women</option>
+        </select>
+      </form>
     </div>
     <h2 style="color: #001f3f; margin: 0;">
       Line-Up for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>

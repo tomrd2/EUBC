@@ -12,21 +12,50 @@ def lineup_view(outing_id):
     if not current_user.coach:
         return redirect(url_for('view_lineups.lineup_view', outing_id=outing_id))
 
+    gender_filter = request.args.get('gender', 'all')  # default to "all"
+
     conn = get_db_connection()
     with conn.cursor() as cursor:
         # Get outing details
         cursor.execute("SELECT * FROM Outings WHERE Outing_ID = %s", (outing_id,))
         outing = cursor.fetchone()
 
-        # Get athletes by group
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Stroke' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
+        # Build gender filter condition
+        gender_condition = ""
+        gender_param = []
+        if gender_filter in ('M', 'W'):
+            gender_condition = "AND M_W = %s"
+            gender_param = [gender_filter]
+
+        # Fetch filtered athletes
+        cursor.execute(f"""
+            SELECT * FROM Athletes
+            WHERE Side = 'Stroke' AND (Coach != 1 OR Coach IS NULL) {gender_condition}
+            ORDER BY Full_Name
+        """, gender_param)
         strokes = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Bow' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
+
+        cursor.execute(f"""
+            SELECT * FROM Athletes
+            WHERE Side = 'Bow' AND (Coach != 1 OR Coach IS NULL) {gender_condition}
+            ORDER BY Full_Name
+        """, gender_param)
         bows = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Both' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
+
+        cursor.execute(f"""
+            SELECT * FROM Athletes
+            WHERE Side = 'Both' AND (Coach != 1 OR Coach IS NULL) {gender_condition}
+            ORDER BY Full_Name
+        """, gender_param)
         boths = cursor.fetchall()
-        cursor.execute("SELECT * FROM Athletes WHERE Side = 'Neither' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
+
+        cursor.execute(f"""
+            SELECT * FROM Athletes
+            WHERE Side = 'Neither' AND (Coach != 1 OR Coach IS NULL) {gender_condition}
+            ORDER BY Full_Name
+        """, gender_param)
         neithers = cursor.fetchall()
+
         cursor.execute("SELECT * FROM Athletes WHERE Side = 'Cox' AND (Coach != 1 OR Coach is null) ORDER BY Full_Name")
         coxes = cursor.fetchall()
 
@@ -108,7 +137,8 @@ def lineup_view(outing_id):
         available_hulls=available_hulls,
         assigned_seats=assigned_seats,
         seat_assignments=seat_assignments,
-        recent_outings=recent_outings
+        recent_outings=recent_outings,
+        gender_filter=gender_filter
     )
 
 @lineups_bp.route('/add_crew/<int:outing_id>', methods=['POST'])

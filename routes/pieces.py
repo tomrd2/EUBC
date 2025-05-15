@@ -7,6 +7,9 @@ pieces_bp = Blueprint('pieces', __name__)
 @pieces_bp.route('/pieces/<int:outing_id>')
 @login_required
 def piece_view(outing_id):
+    if not current_user.coach:
+        return redirect(url_for('outings.outings', outing_id=outing_id))
+
     conn = get_db_connection()
     with conn.cursor() as cursor:
         # Get outing details

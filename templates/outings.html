@@ -42,10 +42,10 @@
                 <a href="/edit_outing/{{ outing.Outing_ID }}">Edit</a>
                 |
                 <a href="/lineups/{{ outing.Outing_ID }}">Line-Up</a>
+                <a href="{{ url_for('pieces.piece_view', outing_id=outing.Outing_ID) }}">Pieces</a>
               {% elif outing.Published %}
-              <a href="{{ url_for('view_lineups.lineup_view', outing_id=outing.Outing_ID) }}">Line Up</a>
+                <a href="{{ url_for('view_lineups.lineup_view', outing_id=outing.Outing_ID) }}">Line Up</a>
               {% endif %}
-              <a href="{{ url_for('pieces.piece_view', outing_id=outing.Outing_ID) }}">Pieces</a>
               <a href="{{ url_for('results.results_view', outing_id=outing.Outing_ID) }}">Results</a>
             </td>
           </tr>
