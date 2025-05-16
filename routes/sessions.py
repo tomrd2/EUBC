@@ -62,7 +62,7 @@ def sessions():
         sessions = cursor.fetchall()
 
         if current_user.coach:
-            cursor.execute("SELECT Athlete_ID, Full_Name FROM Athletes ORDER BY Full_Name")
+            cursor.execute("SELECT Athlete_ID, Full_Name, M_W FROM Athletes ORDER BY Full_Name")
             athletes = cursor.fetchall()
         else:
             athletes = []
@@ -212,4 +212,46 @@ def edit_session(session_id):
 
     conn.close()
     return render_template('session_form.html', session=session_data, is_coach=True, athletes=athletes)
+
+@sessions_bp.route('/assign_session', methods=['POST'])
+@login_required
+def assign_session():
+    if not current_user.coach:
+        return redirect(url_for('sessions.sessions'))
+
+    session_id = request.form.get('session_id')
+    athlete_ids = request.form.getlist('athlete_ids')
+
+    if not session_id or not athlete_ids:
+        return redirect(url_for('sessions.sessions'))
+
+    if not athlete_ids:
+        return redirect(url_for('sessions.sessions'))
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        # Get original session to copy
+        cursor.execute("SELECT * FROM Sessions WHERE Session_ID = %s", (session_id,))
+        original = cursor.fetchone()
+
+        for athlete_id in athlete_ids:
+            if int(athlete_id) != original['Athlete_ID']:
+                cursor.execute("""
+                    INSERT INTO Sessions (Athlete_ID, Session_Date, Activity, Duration, Distance, Split, Type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    athlete_id,
+                    original['Session_Date'],
+                    original['Activity'],
+                    original['Duration'],
+                    original['Distance'],
+                    original['Split'],
+                    original['Type']
+                ))
+
+                conn.commit()
+    conn.close()
+
+    return redirect(url_for('sessions.sessions'))
+
 

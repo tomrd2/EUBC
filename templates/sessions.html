@@ -86,11 +86,113 @@
         <td>{{ s.Comment }}</td>
         {% if current_user.coach %}
         <td>{{ s.Full_Name }}</td>
-        <td><a href="{{ url_for('sessions.edit_session', session_id=s.Session_ID) }}">Edit</a></td>
+        <td>
+          <a href="{{ url_for('sessions.edit_session', session_id=s.Session_ID) }}">Edit</a>
+          <a href="#" onclick="openAssignModal({{ s.Session_ID }})">Assign</a>
+        </td>
         {% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  <div id="assignModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+     background: rgba(0,0,0,0.5); z-index: 999;">
+  <div style="background: white; width: 400px; margin: 100px auto; padding: 20px; border-radius: 6px;">
+    <h3>Assign Session to Athletes</h3>
+    <form method="POST" action="{{ url_for('sessions.assign_session') }}">
+      <input type="hidden" name="session_id" id="assign-session-id">
+      <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+        <label>
+          <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()"> Select All
+        </label>
+      
+        <label for="genderFilter">Filter:</label>
+        <select id="genderFilter" onchange="renderAthleteCheckboxes()" class="btn">
+          <option value="all">All</option>
+          <option value="M">Men</option>
+          <option value="W">Women</option>
+        </select>
+      </div>
+      
+      <div id="athleteCheckboxes" style="max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+        <!-- Checkboxes will be injected here -->
+      </div>
+      <button class="btn" type="submit">Assign</button>
+      <button class="btn" type="button" onclick="closeAssignModal()">Cancel</button>
+    </form>
+  </div>
+</div>
+
+<script>
+
+  const allAthletes = {{ athletes | tojson }};
+  function openAssignModal(sessionId) {
+    document.getElementById('assign-session-id').value = sessionId;
+    document.getElementById('assignModal').style.display = 'block';
+  }
+
+  function closeAssignModal() {
+    document.getElementById('assignModal').style.display = 'none';
+  }
+
+  function renderAthleteCheckboxes() {
+    const filter = document.getElementById('genderFilter').value;
+    const container = document.getElementById('athleteCheckboxes');
+    const selectAll = document.getElementById('selectAllCheckbox').checked;
+
+    container.innerHTML = '';
+
+    const filtered = allAthletes.filter(a => {
+      if (filter === 'all') return true;
+      return a.M_W && a.M_W.toUpperCase() === filter;
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<em>No athletes match this filter.</em>';
+      return;
+    }
+
+    filtered.forEach(a => {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.name = 'athlete_ids';
+      checkbox.value = a.Athlete_ID;
+
+      // Apply "Select All" state
+      checkbox.checked = selectAll;
+
+      label.appendChild(checkbox);
+      label.append(` ${a.Full_Name}`);
+      container.appendChild(label);
+      container.appendChild(document.createElement('br'));
+    });
+  }
+  function toggleSelectAll() {
+    const checked = document.getElementById('selectAllCheckbox').checked;
+    const checkboxes = document.querySelectorAll('#athleteCheckboxes input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = checked);
+  }
+
+  function openAssignModal(sessionId, athleteId) {
+    document.getElementById('assign-session-id').value = sessionId;
+    document.getElementById('assignModal').style.display = 'block';
+    document.getElementById('genderFilter').value = 'all';
+    document.getElementById('selectAllCheckbox').checked = false;
+    renderAthleteCheckboxes();
+  }
+
+  function openAssignModal(sessionId, athleteId) {
+    document.getElementById('assign-session-id').value = sessionId;
+    document.getElementById('assignModal').style.display = 'block';
+    document.getElementById('genderFilter').value = 'all';
+    renderAthleteCheckboxes();
+  }
+
+  function closeAssignModal() {
+    document.getElementById('assignModal').style.display = 'none';
+  }
+</script>
+
 </body>
 </html>
