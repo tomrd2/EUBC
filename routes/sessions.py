@@ -7,6 +7,15 @@ import csv
 sessions_bp = Blueprint('sessions', __name__)
 
 from flask import request
+from datetime import timedelta
+
+def format_timedelta(td):
+    if not td:
+        return ''
+    total_seconds = int(td.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    return f"{hours:02d}:{minutes:02d}"
 
 @sessions_bp.route('/sessions')
 @login_required
@@ -207,7 +216,11 @@ def edit_session(session_id):
         cursor.execute("SELECT * FROM Sessions WHERE Session_ID = %s", (session_id,))
         session_data = cursor.fetchone()
 
-        cursor.execute("SELECT * FROM Athletes WHERE Coach IS NULL")
+        session_data['Duration'] = format_timedelta(session_data['Duration'])
+        session_data['Split'] = format_timedelta(session_data['Split'])
+        print("SESSION DATA:", session_data)
+
+        cursor.execute("SELECT * FROM Athletes WHERE (Coach IS NULL OR Coach = 0)")
         athletes = cursor.fetchall()
 
     conn.close()

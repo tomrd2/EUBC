@@ -43,7 +43,7 @@
     <label for="activity">Activity:</label>
     <select name="activity">
       <option value="">-- All Activities --</option>
-      {% for act in ['Erg', 'Bike', 'Run', 'Other'] %}
+      {% for act in ['Water','Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike', 'Brisk Walk', 'Other'] %}
         <option value="{{ act }}" {% if selected_activity == act %}selected{% endif %}>{{ act }}</option>
       {% endfor %}
     </select>
