@@ -240,5 +240,9 @@ table textarea {
   height: 60px;
 }
 
+a.btn {
+  text-decoration: none;
+}
+
   
   

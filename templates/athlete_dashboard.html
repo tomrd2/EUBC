@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Athlete Dashboard</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> <!-- 🔹 Required for chart -->
+    </head>
+<body>
+    {% include "_header.html" %}
+    <div style="max-width: 1000px; margin: 0 auto;">
+        <h2>Athlete Dashboard</h2>
+
+        {% if current_user.coach %}
+
+            <form method="GET" action="{{ url_for('dashboard.athlete_dashboard') }}">
+                <label for="athlete_id">Select Athlete:</label>
+                <select name="athlete_id" onchange="this.form.submit()">
+                    <option value="">-- Choose Athlete --</option>
+                    {% for a in athletes %}
+                        <option value="{{ a.Athlete_ID }}" {% if a.Athlete_ID|string == selected_athlete %}selected{% endif %}>
+                            {{ a.Full_Name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        {% endif %}
+
+        <div id="daily-chart" style="margin-top: 50px;"></div>
+
+        {% if recent_history %}
+        <script>
+            const dates = {{ recent_history | map(attribute='FormattedDate') | list | tojson }};
+            const t2 = {{ recent_history | map(attribute='T2Minutes') | list | tojson }};
+            const fatigue = {{ recent_history | map(attribute='Fatigue') | list | tojson }};
+            const fitness = {{ recent_history | map(attribute='Fitness') | list | tojson }};
+        
+            Plotly.newPlot('daily-chart', [
+                {
+                    x: dates,
+                    y: t2,
+                    type: 'bar',
+                    name: 'T2 Minutes',
+                    marker: { color: 'rgba(0, 123, 255, 0.6)' }
+                },
+                {
+                    x: dates,
+                    y: fatigue,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Fatigue',
+                    line: { color: 'red' }
+                },
+                {
+                    x: dates,
+                    y: fitness,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Fitness',
+                    line: { color: 'green' }
+                }
+            ], {
+                title: 'Last 30 Days of Training',
+                xaxis: { title: 'Date' },
+                yaxis: { title: 'Minutes / Load' },
+                barmode: 'overlay',
+                height: 350,
+                width: 1000
+            });
+        </script>
+        {% endif %}
+
+        <div style="display: flex; justify-content: space-between; gap: 20px; margin-top: 50px;">
+            <!-- Season Tests Chart -->
+            <div style="flex: 1;">
+              <div id="testChart" style="height: 400px;"></div>
+                {% if test_chart_data %}
+                <script>
+                    const testDates = {{ test_chart_data | map(attribute='date') | list | tojson }};
+                    const testTimes = {{ test_chart_data | map(attribute='seconds') | list | tojson }};
+                    const testLabels = {{ test_chart_data | map(attribute='label') | list | tojson }};
+                
+                    const trace = {
+                    x: testDates,
+                    y: testTimes,
+                    mode: 'lines+markers',
+                    name: '2k Equivalent',
+                    line: { color: 'green' },
+                    text: testLabels,
+                    hovertemplate: '%{x}<br>2k Time: %{text}<extra></extra>'
+                    };
+                
+                    const layout = {
+                    title: 'Season Tests',
+                    xaxis: { title: 'Date' },
+                    yaxis: {
+                        title: '2k Equivalent',
+                        autorange: 'reversed',
+                        tickmode: 'array',
+                        tickvals: testTimes,
+                        ticktext: testLabels
+                    },
+                    height: 350,
+                    width: 500
+                    };
+                
+                    Plotly.newPlot('testChart', [trace], layout);
+                </script>
+                {% endif %}
+            </div>
+
+            <div id="testTable" style="height: 400px;"></div>
+
+            {% if test_table_data %}
+                <script>
+                    const testData = {{ test_table_data | tojson }};
+                    console.log("📊 Plotly Test Table Data:", testData);  // Debug line
+                    const table = {
+                        type: 'table',
+                        header: {
+                            values: ["Date", "Distance (m)", "Time", "Split", "2k Equivalent", "Comment"],
+                            align: "left",
+                            fill: { color: "#d3d3d3" },
+                            font: { family: "Arial", size: 12, color: "black" }
+                        },
+                        cells: {
+                            values: [
+                                testData.map(r => r.Date),
+                                testData.map(r => r.Distance),
+                                testData.map(r => r.Duration),
+                                testData.map(r => r.Split),
+                                testData.map(r => r['2k_Equiv']),
+                                testData.map(r => r.Comment),
+                            ],
+                            align: "left",
+                            fill: { color: ["white", "#f2f2f2"] },
+                            font: { family: "Arial", size: 11, color: "black" },
+                            height: 24
+                        }
+                    };
+                
+                    const tableLayout = {
+                        title: "Test History",
+                        width: 480,
+                        height: 350,
+                        margin: { t: 40, l: 10, r: 10, b: 10 }
+                    };
+                
+                    Plotly.newPlot("testTable", [table], tableLayout);
+                </script>
+            {% endif %}
+        
+
+        </div>
+        
+        <div id="chart" style="margin-top: 1px;"></div>
+
+        {% if chart_data %}
+        <script>
+            const labels = {{ chart_data | map(attribute='label') | list | tojson }};
+            const athleteTotals = {{ chart_data | map(attribute='total') | list | tojson }};
+            const squadAverages = {{ chart_data | map(attribute='avg') | list | tojson }};
+
+        
+            Plotly.newPlot('chart', [
+                {
+                    x: labels,
+                    y: athleteTotals,
+                    type: 'bar',
+                    name: '{{ selected_name or "Selected Athlete" }}',
+                    marker: { color: 'rgb(0, 123, 255)' }
+                },
+                {
+                    x: labels,
+                    y: squadAverages,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Squad Average',
+                    line: { color: 'red' }
+                }
+            ], {
+                barmode: 'group',
+                title: 'Last 12 Weeks',
+                xaxis: { title: 'Week Starting' },
+                yaxis: { title: 'T2 Minutes' },
+                height: 350,
+                width: 1000
+            });
+        </script>
+        
+        {% endif %}
+    </div>
+
+</body>
+</html>

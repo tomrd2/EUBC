@@ -83,9 +83,10 @@
           <form action="{{ url_for('athletes.reset_password', athlete_id=athlete.Athlete_ID) }}" method="post" style="display:inline;">
             <button class="btn" type="submit" onclick="return confirm('Reset password for {{ athlete.Full_Name }} to {{ athlete.Initials.lower() }}_eubc?')">Reset Password</button>
           </form>
+          <a class="btn" href="{{ url_for('dashboard.athlete_dashboard', athlete_id=athlete.Athlete_ID) }}">Dashboard</a>
+
           </td>
 
-    
       {% endfor %}
     </tbody>
   </table>

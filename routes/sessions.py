@@ -9,6 +9,49 @@ sessions_bp = Blueprint('sessions', __name__)
 from flask import request
 from datetime import timedelta
 
+def get_T2_minutes(activity, duration, type):
+    #Update this if Type changes to Intensity
+
+    #duration is a string and so needs to be converted to timedelta
+
+    if not duration:
+        print("Not duration!")
+        return 0
+    
+    if isinstance(duraction,str):
+        parts = duration.split(':')
+        if len(parts) == 2:
+            hours, minutes = map(int, parts)        
+        elif len(parts) == 3:
+            hours, minutes, seconds = map(int, parts)
+        else:    
+            return 0
+    
+    else:
+        return 0
+
+    t2_min = hours * 60 + minutes
+
+    if activity == "Water":
+        t2_min = t2_min * 1
+    elif activity == "Erg":
+        t2_min = t2_min * 1.35
+    elif activity == "Static Bike":
+        t2_min = t2_min * 0.95
+    elif activity == "Road Bike":
+        t2_min = t2_min * 0.8
+    elif activity == "Run":
+        t2_min = t2_min * 1.4
+    elif activity == "Swim":
+        t2_min = t2_min * 1.2
+    elif activity == "Brisk Walk":
+        t2_min = t2_min * 0.5
+    else:
+        t2_min = t2_min * 0.6
+
+    return t2_min
+
+
 def format_timedelta(td):
     if not td:
         return ''
@@ -62,7 +105,8 @@ def sessions():
         FROM Sessions s
         JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID
         {where_clause}
-        ORDER BY s.Session_Date DESC
+        ORDER BY s.Session_Date DESC, a.Full_Name ASC
+        LIMIT 500
     """
 
     conn = get_db_connection()
@@ -103,17 +147,19 @@ def add_session():
         data = request.form
         athlete_id = current_user.id if not current_user.coach else data['athlete_id']
 
+        T2Minutes = get_T2_minutes(data['activity'], data['duration'],data['type'])
+
         conn = get_db_connection()
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO Sessions (
                     Athlete_ID, Session_Date, Activity, Duration,
-                    Distance, Split, Type, Weight, Comment
+                    Distance, Split, Type, Weight, Comment, T2Minutes
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 athlete_id, data['session_date'], data['activity'], data['duration'],
-                data['distance'], data['split'], data['type'], data['weight'], data['comment']
+                data['distance'], data['split'], data['type'], data['weight'], data['comment'], T2Minutes
             ))
             conn.commit()
         conn.close()
@@ -200,15 +246,21 @@ def edit_session(session_id):
     with conn.cursor() as cursor:
         if request.method == 'POST':
             data = request.form
+
+            T2Minutes = get_T2_minutes(data['activity'], data['duration'],data['type'])
+
+            print("T2 Minutes: ", T2Minutes)
+
             cursor.execute("""
                 UPDATE Sessions SET
                     Session_Date=%s, Activity=%s, Duration=%s, Distance=%s,
-                    Split=%s, Type=%s, Weight=%s, Comment=%s, Athlete_ID=%s
+                    Split=%s, Type=%s, Weight=%s, Comment=%s, Athlete_ID=%s,
+                    T2Minutes=%s
                 WHERE Session_ID = %s
             """, (
                 data['session_date'], data['activity'], data['duration'],
                 data['distance'], data['split'], data['type'],
-                data['weight'], data['comment'], data['athlete_id'], session_id
+                data['weight'], data['comment'], data['athlete_id'], T2Minutes, session_id
             ))
             conn.commit()
             return redirect(url_for('sessions.sessions'))

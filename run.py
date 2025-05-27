@@ -21,6 +21,7 @@ from routes.pieces import pieces_bp
 from routes.timing import timing_bp
 from routes.results import results_bp
 from routes.view_lineups import view_lineups_bp
+from routes.dashboard import dashboard_bp
 
 from sockets import socketio  # ✅ Import the initialized socketio instance
 
@@ -40,6 +41,7 @@ app.register_blueprint(view_lineups_bp)
 app.register_blueprint(pieces_bp)
 app.register_blueprint(timing_bp)
 app.register_blueprint(results_bp)
+app.register_blueprint(dashboard_bp)
 
 # Flask-Login setup
 login_manager = LoginManager()

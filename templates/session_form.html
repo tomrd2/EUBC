@@ -103,7 +103,7 @@
             <td><label for="activity">Activity:</label></td>
             <td>
               <select name="activity" required>
-                {% for option in ['Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike', 'Brisk Walk', 'Other'] %}
+                {% for option in ['Water','Erg', 'Static Bike', 'Run', 'Swim', 'Road Bike', 'Brisk Walk', 'Other'] %}
                   <option value="{{ option }}"
                     {% if session and session.Activity == option %}selected{% endif %}>{{ option }}</option>
                 {% endfor %}

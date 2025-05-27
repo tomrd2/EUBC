@@ -51,6 +51,7 @@
   <div class="menu-container">
     <a href="{{ url_for('outings.outings') }}">Outings</a>
     <a href="{{ url_for('sessions.sessions') }}">Sessions</a>
+    <a href="{{ url_for('dashboard.athlete_dashboard') }}">Athlete Dashboard</a>
     {% if current_user.coach %}
       <a href="{{ url_for('hulls.hulls') }}">Hulls</a>
       <a href="{{ url_for('athletes.athletes') }}">Athletes</a>
