@@ -143,6 +143,11 @@ def change_password():
 
     return render_template('change_password.html')
 
+from sockets import socketio  # already imported earlier
+
+# Expose the app and socketio instance for Gunicorn
+application = app  # Optional: for compatibility with some WSGI tools
+socketio_app = socketio  # Gunicorn will use this
+
 if __name__ == '__main__':
-    from sockets import socketio
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
