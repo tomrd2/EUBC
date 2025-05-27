@@ -147,7 +147,7 @@ from sockets import socketio  # already imported earlier
 
 # Expose the app and socketio instance for Gunicorn
 application = app  # Optional: for compatibility with some WSGI tools
-socketio_app = socketio  # Gunicorn will use this
+socketio_app = app  # Gunicorn will use this name with --worker-class eventlet
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
