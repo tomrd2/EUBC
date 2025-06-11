@@ -175,6 +175,7 @@ def athlete_dashboard():
 
     return render_template(
         'athlete_dashboard.html',
+        page_title='Athlete Dashboard',
         athletes=athletes,
         selected_athlete=selected_athlete,
         recent_history=recent_history,

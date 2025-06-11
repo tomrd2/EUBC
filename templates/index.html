@@ -1,61 +1,107 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>EUBC Data App</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crew Optic</title>
   <style>
-    body {
+    /* Reset margin/padding */
+    * {
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
       font-family: Arial, sans-serif;
       background-image: url('{{ url_for("static", filename="background.jpg") }}');
       background-size: cover;
+      background-attachment: fixed;
       background-position: center;
-      background-repeat: no-repeat;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .menu-container {
-      margin-top: 80px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-      width: 100%;
-    }
-
-    .menu-container a {
-      display: block;
-      width: 250px;
-      padding: 15px;
-      font-size: 18px;
-      text-align: center;
-      background-color: rgba(0, 31, 63, 0.85); /* EUBC navy with transparency */
       color: white;
-      text-decoration: none;
-      border-radius: 8px;
-      transition: background-color 0.3s;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    .menu-container a:hover {
-      background-color: rgba(0, 31, 63, 1);
+    .login-link {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      text-decoration: none;
+      color: white;
+      font-weight: bold;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 16px;
+      border-radius: 5px;
+    }
+
+    .content {
+      position: absolute;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 30px;
+      border-radius: 10px;
+    }
+
+    .content p {
+      margin-bottom: 1em;
+      line-height: 1.6;
     }
   </style>
 </head>
 <body>
-  {% include "_header.html" %}
 
-  <div class="menu-container">
-    <a href="{{ url_for('outings.outings') }}">Outings</a>
-    <a href="{{ url_for('sessions.sessions') }}">Sessions</a>
-    <a href="{{ url_for('dashboard.athlete_dashboard') }}">Athlete Dashboard</a>
-    {% if current_user.coach %}
-      <a href="{{ url_for('hulls.hulls') }}">Hulls</a>
-      <a href="{{ url_for('athletes.athletes') }}">Athletes</a>
-    {% endif %}
+  <a href="{{ url_for('app_menu') }}" class="login-link">Login</a>
+
+<div class="content">
+  <h1>CrewOptic</h1>
+  <p>
+    Crew Optic is an application for gathering, monitoring and interpreting rowing data in a performance squad. It includes:
+  </p>
+  <ul>
+    <li>All land training data for squad members</li>
+    <li>All crew lineups</li>
+    <li>All on-the-water pieces</li>
+    <li>All in-boat telemetry</li>
+  </ul>
+
+  <div style="display: flex; align-items: center; gap: 20px;">
+    <div style="flex: 1;">
+
+        <h2>Key Benefits</h2>
+  <p>
+    Modern rowing coaches have access to large quantities of performance data. However, this data may reside in a number of different places, such as spreadsheets, timing apps or telemetry apps.
+    Crew Optic gathers this data into a single place and so that higher level tools can be used to interpret athlete and crew performance.
+  </p>
+      <h2>Presenting data in one place</h2>
+      <p>
+        Athlete, crew and squad dashboards allow coaches and athletes to see and compare training data. This can include simple training volumes (attendance and time/distance) or higher level modelling of training.
+      </p>
+    </div>
+    <div style="flex: 1;">
+      <img src="{{ url_for('static', filename='sample_athlete_dashboard.png') }}" alt="Athlete Dashboard" style="max-width: 100%; height: 100;">
+    </div>
   </div>
+  <div>
+    <h2>Performance Models</h2>
+    <p>
+      On-the-water data can be modelled to provide insight into individual performance, even when delivered in crew boats. This is gamified to provide athletes with feedback on training performance.
+    </p>
+  </div>
+  <div>
+    <h2>ML and AI</h2>
+    <p>
+      Machine learning and AI models are used to bring together separate data, such as land-training, OTW results and onboard telemetry. This can provide coaches with valuable information about the significance of individual metrics as well as the performance of the athletes themselves.
+    </p>
+  </div>
+</div>
+
+
 </body>
 </html>

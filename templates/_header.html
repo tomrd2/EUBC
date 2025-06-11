@@ -1,10 +1,10 @@
 <header style="display: flex; justify-content: space-between; align-items: center; background-color: #001f3f; color: white; padding: 5px 20px; border-radius: 8px;">
   <!-- Left side: logo and title -->
   <div style="display: flex; align-items: center;">
-    <a href="{{ url_for('app_home') }}">
+    <a href="{{ url_for('app_menu') }}">
       <img src="{{ url_for('static', filename='EUBC_Logo.png') }}" alt="Logo" style="height: 50px; margin-right: 10px;">
     </a>
-    <h1 style="margin: 0;">EUBC Data</h1>
+    <h1 style="margin: 0;">{{ page_title or 'EUBC Data' }}</h1>
   </div>
 
   <!-- Right side: user info -->

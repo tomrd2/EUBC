@@ -6,9 +6,8 @@
         <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> <!-- 🔹 Required for chart -->
     </head>
 <body>
-    {% include "_header.html" %}
+    {% include "_header.html" with context %}
     <div style="max-width: 1000px; margin: 0 auto;">
-        <h2>Athlete Dashboard</h2>
 
         {% if current_user.coach %}
 

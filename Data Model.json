@@ -1,0 +1,119 @@
+[
+  {
+    "table_name": "Athletes",
+    "columns": [
+      { "column_name": "Coach", "data_type": "tinyint" },
+      { "column_name": "Athlete_ID", "data_type": "int" },
+      { "column_name": "Side", "data_type": "varchar" },
+      { "column_name": "Sculls", "data_type": "tinyint" },
+      { "column_name": "Password_Hash", "data_type": "text" },
+      { "column_name": "M_W", "data_type": "varchar" },
+      { "column_name": "Initials", "data_type": "varchar" },
+      { "column_name": "Full_Name", "data_type": "varchar" },
+      { "column_name": "Email", "data_type": "varchar" },
+      { "column_name": "Cox", "data_type": "tinyint" },
+      { "column_name": "Joined", "data_type": "date" }
+    ]
+  },
+  {
+    "table_name": "Crews",
+    "columns": [
+      { "column_name": "Boat_Type", "data_type": "varchar" },
+      { "column_name": "Cox_ID", "data_type": "int" },
+      { "column_name": "Cox_Name", "data_type": "varchar" },
+      { "column_name": "Crew_ID", "data_type": "int" },
+      { "column_name": "Crew_Name", "data_type": "varchar" },
+      { "column_name": "Hull_ID", "data_type": "int" },
+      { "column_name": "Hull_Name", "data_type": "varchar" },
+      { "column_name": "Outing_ID", "data_type": "int" }
+    ]
+  },
+  {
+    "table_name": "GMTs",
+    "columns": [
+      { "column_name": "GMT", "data_type": "time" },
+      { "column_name": "Boat_Type", "data_type": "varchar" }
+    ]
+  },
+  {
+    "table_name": "History",
+    "columns": [
+      { "column_name": "Athlete_ID", "data_type": "int" },
+      { "column_name": "Date", "data_type": "date" },
+      { "column_name": "Fatigue", "data_type": "decimal" },
+      { "column_name": "Fitness", "data_type": "decimal" },
+      { "column_name": "Injured", "data_type": "tinyint" },
+      { "column_name": "T2Minutes", "data_type": "int" }
+    ]
+  },
+  {
+    "table_name": "Hulls",
+    "columns": [
+      { "column_name": "Boat_Type", "data_type": "varchar" },
+      { "column_name": "Hull_ID", "data_type": "int" },
+      { "column_name": "Hull_Name", "data_type": "varchar" },
+      { "column_name": "Max_Weight", "data_type": "int" }
+    ]
+  },
+  {
+    "table_name": "Outings",
+    "columns": [
+      { "column_name": "Published", "data_type": "tinyint" },
+      { "column_name": "Outing_Name", "data_type": "varchar" },
+      { "column_name": "Outing_Date", "data_type": "date" },
+      { "column_name": "Location", "data_type": "varchar" },
+      { "column_name": "Description", "data_type": "text" },
+      { "column_name": "Outing_ID", "data_type": "int" }
+    ]
+  },
+  {
+    "table_name": "Pieces",
+    "columns": [
+      { "column_name": "Description", "data_type": "text" },
+      { "column_name": "Distance", "data_type": "int" },
+      { "column_name": "Outing_ID", "data_type": "int" },
+      { "column_name": "Piece_ID", "data_type": "int" },
+      { "column_name": "Rate_Cap", "data_type": "int" }
+    ]
+  },
+  {
+    "table_name": "Results",
+    "columns": [
+      { "column_name": "Crew_ID", "data_type": "int" },
+      { "column_name": "Time", "data_type": "time" },
+      { "column_name": "Start", "data_type": "time" },
+      { "column_name": "Piece_ID", "data_type": "int" },
+      { "column_name": "GMT_Percent", "data_type": "float" },
+      { "column_name": "GMT", "data_type": "decimal" },
+      { "column_name": "Finish", "data_type": "time" },
+      { "column_name": "Comment", "data_type": "text" }
+    ]
+  },
+  {
+    "table_name": "Seats",
+    "columns": [
+      { "column_name": "Athlete_ID", "data_type": "int" },
+      { "column_name": "Seat", "data_type": "varchar" },
+      { "column_name": "Rowing", "data_type": "varchar" },
+      { "column_name": "Crew_ID", "data_type": "int" },
+      { "column_name": "Athlete_Name", "data_type": "varchar" }
+    ]
+  },
+  {
+    "table_name": "Sessions",
+    "columns": [
+      { "column_name": "2k_Equiv", "data_type": "time" },
+      { "column_name": "Activity", "data_type": "varchar" },
+      { "column_name": "Athlete_ID", "data_type": "int" },
+      { "column_name": "Comment", "data_type": "varchar" },
+      { "column_name": "Distance", "data_type": "int" },
+      { "column_name": "Duration", "data_type": "time" },
+      { "column_name": "Session_Date", "data_type": "date" },
+      { "column_name": "Session_ID", "data_type": "int" },
+      { "column_name": "Split", "data_type": "time" },
+      { "column_name": "T2Minutes", "data_type": "int" },
+      { "column_name": "Type", "data_type": "varchar" },
+      { "column_name": "Weight", "data_type": "float" }
+    ]
+  }
+]

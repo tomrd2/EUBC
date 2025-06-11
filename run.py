@@ -80,16 +80,21 @@ def login():
         if user and check_password_hash(user['Password_Hash'], password):
             login_user(User(user))
             print(current_user.name + " logged in")
-            return redirect(url_for('app_home'))
+            return redirect(url_for('app_menu'))
         else:
             return "Invalid credentials", 401
 
     return render_template('login.html')
 
 @app.route('/')
-@login_required
 def app_home():
-    return render_template('index.html', user=current_user)
+    return render_template('index.html')
+
+@app.route('/menu')
+@login_required
+def app_menu():
+    return render_template('home.html', user=current_user)
+
 
 @app.route('/logout')
 @login_required
@@ -100,7 +105,7 @@ def logout():
 @app.before_request
 def require_login():
     # Allow access to login page and static files without being logged in
-    allowed_routes = ['login', 'static']
+    allowed_routes = ['login', 'static', 'app_home']
 
     if request.endpoint is None:
         return
@@ -139,7 +144,7 @@ def change_password():
 
         flash('Password changed successfully.', 'success')
 
-        return redirect(url_for('app_home'))
+        return redirect(url_for('app_menu'))
 
     return render_template('change_password.html')
 

@@ -6,7 +6,6 @@ def make_history():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    print("Deleting existing history")
     cursor.execute("DELETE FROM History")
 
     # Step 1: Get all relevant athletes
@@ -35,8 +34,6 @@ def make_history():
     t2_lookup = defaultdict(int)
     for row in raw_sessions:
         t2_lookup[(row['Athlete_ID'], row['Session_Date'])] = row['Total_T2'] or 0
-
-    print("Calculating Fatigue and preparing inserts...")
 
     # Step 5: Precompute weights
     weights = [1.0, 0.8, 0.6, 0.4, 0.2]
@@ -70,9 +67,6 @@ def make_history():
                 round(fitness/50.5, 2)
             ))
 
-
-    print(f"Inserting {len(history_records)} rows...")
-
     cursor.executemany("""
         INSERT INTO History (Athlete_ID, Date, T2Minutes, Fatigue, Fitness)
         VALUES (%s, %s, %s, %s, %s)
@@ -80,7 +74,7 @@ def make_history():
 
     conn.commit()
     conn.close()
-    print("✅ History table populated with fatigue values.")
+    print("✅ History table refreshed.")
 
 if __name__ == "__main__":
     make_history()
