@@ -44,14 +44,22 @@
 <body>
   {% include "_header.html" %}
 
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
-    <div style="display: flex; align-items: center;">
-      <a href="{{ url_for('outings.outings') }}" class="btn" style="margin-right: 15px;">← Back</a>
-      <h2 style="color: #001f3f; margin: 0;">
-        Results for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>
-      </h2>
-    </div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+  <!-- Left side: Back button and title -->
+  <div style="display: flex; align-items: center;">
+    <a href="{{ url_for('outings.outings') }}" class="btn" style="margin-right: 15px;">← Back</a>
+    <h2 style="color: #001f3f; margin: 0;">
+      Results for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>
+    </h2>
   </div>
+
+  <!-- Right side: Link to detailed results -->
+  <div>
+    <a href="{{ url_for('results.det_results_view', outing_id=outing.Outing_ID) }}" class="btn">
+      View Detailed Results →
+    </a>
+  </div>
+</div>
 
   <div class="crew-grid">
 

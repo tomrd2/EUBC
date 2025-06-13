@@ -1,8 +1,9 @@
 from datetime import date, timedelta
 from collections import defaultdict
 from db import get_db_connection
+from add_elo import add_elo
 
-def make_history():
+def make_history(elo_history=None):
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -59,17 +60,19 @@ def make_history():
                     fitness += decay * float(t2_lookup.get((athlete_id, day), 0))
 
             t2 = t2_lookup.get((athlete_id, current_date), 0)
+            elo = round(elo_history.get(athlete_id, {}).get(current_date, 1000), 2)
             history_records.append((
                 athlete_id,
                 current_date,
                 t2,
                 round(fatigue/3, 2),
-                round(fitness/50.5, 2)
+                round(fitness/50.5, 2),
+                elo
             ))
 
     cursor.executemany("""
-        INSERT INTO History (Athlete_ID, Date, T2Minutes, Fatigue, Fitness)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO History (Athlete_ID, Date, T2Minutes, Fatigue, Fitness, OTW_ELO)
+        VALUES (%s, %s, %s, %s, %s, %s)
     """, history_records)
 
     conn.commit()
@@ -77,4 +80,5 @@ def make_history():
     print("✅ History table refreshed.")
 
 if __name__ == "__main__":
-    make_history()
+    elo_history = add_elo()
+    make_history(elo_history)   

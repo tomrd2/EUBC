@@ -17,7 +17,7 @@ def format_day_suffix(n):
 @dashboard_bp.route('/athlete_dash')
 @login_required
 def athlete_dashboard():
-    make_history()
+    #make_history()
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -36,6 +36,7 @@ def athlete_dashboard():
     test_chart_data = []
     formatted_table_rows = []
     selected_name = None
+    elo_history = []
 
     if selected_athlete:
         selected_name = next((a['Full_Name'] for a in athletes if str(a['Athlete_ID']) == str(selected_athlete)), None)
@@ -170,6 +171,18 @@ def athlete_dashboard():
                     'Comment': row['Comment'] or ''
                 }
                 formatted_table_rows.append(formatted_row)
+        # get full OTW‐ELO history for the selected athlete
+        cursor.execute(
+            """
+            SELECT Date      AS EloDate,
+                OTW_ELO   AS EloValue
+            FROM   History
+            WHERE  Athlete_ID = %s
+            ORDER  BY Date
+            """,
+            (selected_athlete,)          # or current_user.athlete_id if not coach-driven
+        )
+        elo_history = cursor.fetchall()     # list of rows with EloDate / EloValue
 
     conn.close()
 
@@ -182,5 +195,6 @@ def athlete_dashboard():
         selected_name=selected_name,
         chart_data = chart_data,
         test_chart_data=test_chart_data,
-        test_table_data=formatted_table_rows
+        test_table_data=formatted_table_rows,
+        elo_history = elo_history
     )
