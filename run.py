@@ -90,6 +90,10 @@ def login():
 def app_home():
     return render_template('index.html')
 
+@app.route('/privacy')
+def app_privacy():
+    return render_template('privacy.html')
+
 @app.route('/menu')
 @login_required
 def app_menu():
