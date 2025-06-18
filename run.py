@@ -109,7 +109,7 @@ def logout():
 @app.before_request
 def require_login():
     # Allow access to login page and static files without being logged in
-    allowed_routes = ['login', 'static', 'app_home']
+    allowed_routes = ['login', 'static', 'app_home', 'app_privacy']
 
     if request.endpoint is None:
         return
