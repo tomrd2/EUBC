@@ -11,7 +11,6 @@ def outings():
     with conn.cursor() as cursor:
         cursor.execute("""
             SELECT * FROM Outings
-            WHERE Outing_Date >= CURDATE() - INTERVAL 2 MONTH
             ORDER BY Outing_Date DESC
         """)
         outings = cursor.fetchall()

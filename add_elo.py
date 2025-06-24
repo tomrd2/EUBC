@@ -106,7 +106,7 @@ def generate_daily_elo(results, seats, athletes, start_date):
 
             # Convert to percent_ahead
             expected_percent = {
-                crew_id: 100 + (rating - 1000) / 50
+                crew_id: 100 + (rating - 1000) / 50         # So 50 rating points changes expected GMT % by one point
                 for crew_id, rating in crew_ratings.items()
             }
 

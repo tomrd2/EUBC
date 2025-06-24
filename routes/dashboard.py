@@ -198,3 +198,97 @@ def athlete_dashboard():
         test_table_data=formatted_table_rows,
         elo_history = elo_history
     )
+
+@dashboard_bp.route('/squad_dash')
+@login_required
+def squad_dashboard():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT MAX(Date) as latest FROM History")
+    row = cursor.fetchone()
+    today = row["latest"]
+    start_date = today - timedelta(weeks=12)
+
+    # Get gender filter from query string
+    selected_gender = request.args.get('gender', 'All')
+
+    # Dynamic SQL WHERE clause
+    gender_clause = ""
+    gender_params = []
+
+    if selected_gender in ['M', 'W']:
+        gender_clause = "AND a.M_W = %s"
+        gender_params = [selected_gender]
+
+    # 1. Weekly total T2Minutes
+    cursor.execute(f"""
+        SELECT
+            STR_TO_DATE(CONCAT(YEARWEEK(h.Date, 3), ' Monday'), '%%X%%V %%W') AS week_start,
+            SUM(h.T2Minutes) AS total_minutes
+        FROM History h
+        JOIN Athletes a ON h.Athlete_ID = a.Athlete_ID
+        WHERE h.Date >= %s {gender_clause}
+        GROUP BY YEARWEEK(h.Date, 3)
+        ORDER BY week_start
+    """, [start_date] + gender_params)
+    weekly_t2 = cursor.fetchall()
+
+    # 2. Avg fatigue/fitness for each Sunday
+    cursor.execute(f"""
+        SELECT
+            h.Date AS sunday,
+            AVG(h.Fatigue) AS avg_fatigue,
+            AVG(h.Fitness) AS avg_fitness
+        FROM History h
+        JOIN Athletes a ON h.Athlete_ID = a.Athlete_ID
+        WHERE WEEKDAY(h.Date) = 6 AND h.Date >= %s {gender_clause}
+        GROUP BY h.Date
+        ORDER BY h.Date
+    """, [start_date] + gender_params)
+    fatigue_fitness = cursor.fetchall()
+
+    # Build combined chart data
+    squad_load = []
+    for week in weekly_t2:
+        sunday = week["week_start"] + timedelta(days=6)
+        ff_match = next((ff for ff in fatigue_fitness if ff["sunday"] == sunday), None)
+        squad_load.append({
+            "week": week["week_start"].strftime("%Y-%m-%d"),
+            "t2": week["total_minutes"] or 0,
+            "fatigue": ff_match["avg_fatigue"] if ff_match else None,
+            "fitness": ff_match["avg_fitness"] if ff_match else None
+        })
+
+    thirty_days_ago = today - timedelta(days=30)
+
+    cursor.execute(f"""
+        SELECT a.Full_Name, h1.Athlete_ID, h1.OTW_ELO AS today_elo, h2.OTW_ELO AS past_elo
+        FROM Athletes a
+        LEFT JOIN History h1 ON h1.Athlete_ID = a.Athlete_ID AND h1.Date = %s
+        LEFT JOIN History h2 ON h2.Athlete_ID = a.Athlete_ID AND h2.Date = %s
+        WHERE a.Side != 'Cox' AND (a.Coach IS NULL OR a.Coach != 1)
+        { "AND a.M_W = %s" if selected_gender in ['M', 'W'] else "" }
+        ORDER BY h1.OTW_ELO DESC
+    """, [today, thirty_days_ago] + ([selected_gender] if selected_gender in ['M', 'W'] else []))
+
+    elo_table_data = []
+    for row in cursor.fetchall():
+        if row["today_elo"] is not None:
+            movement = None
+            if row["past_elo"] is not None:
+                movement = round(row["today_elo"] - row["past_elo"])
+                elo_table_data.append({
+                    "id": row["Athlete_ID"],
+                    "name": row["Full_Name"],
+                    "elo": round(row["today_elo"]),
+                    "movement": movement
+                })
+
+    conn.close()
+    return render_template(
+        "squad_dashboard.html",
+        squad_load=squad_load,
+        elo_table_data = elo_table_data,
+        selected_gender=selected_gender
+    )
