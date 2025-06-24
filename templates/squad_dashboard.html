@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>Squad Dashboard</title>
-        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> <!-- 🔹 Required for chart -->
-    </head>
+<head>
+    <title>Squad Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
 <body>
     {% include "_header.html" with context %}
 
@@ -16,49 +16,49 @@
             <option value="W" {% if selected_gender == 'W' %}selected{% endif %}>Women</option>
         </select>
     </form>
+
     <div style="max-width: 1000px; margin: 0 auto;">
+        <div style="display: flex; gap: 20px; align-items: flex-start;">
+            <!-- Left column: both charts -->
+            <div style="flex: 3;">
+                <div id="squad-summary" style="margin-bottom: 40px;"></div>
+                <div id="activity-summary"></div>
+            </div>
 
-        <div style="display: flex; gap: 40px; margin-top: 30px;">
-        <!-- Chart container -->
-        <div style="flex: 3;">
-            <div id="squad-summary"></div>
+            <!-- Right column: ELO Table -->
+            <div style="flex: 1; max-width: 400px; min-width: 350px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #ccc;">
+                            <th style="text-align: left;">Name</th>
+                            <th style="text-align: center;">ELO</th>
+                            <th style="text-align: center;">30 Days</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in elo_table_data %}
+                        <tr>
+                            <td><a href="{{ url_for('dashboard.athlete_dashboard') }}?athlete_id={{ row.id }}">{{ row.name }}</a></td>
+                            <td style="text-align: center;">{{ row.elo }}</td>
+                            <td style="text-align: center;">
+                                {% if row.movement is not none %}
+                                    {% if row.movement > 0 %}
+                                        <span style="color: green;">+{{ row.movement }}</span>
+                                    {% elif row.movement < 0 %}
+                                        <span style="color: red;">{{ row.movement }}</span>
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-
-        <!-- Table container -->
-        <div style="flex: 1; max-width: 400px; min-width: 350px;">
-            <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-                <tr style="border-bottom: 1px solid #ccc;">
-                <th style="text-align: left;">Name</th>
-                <th style="text-align: center;">ELO</th>
-                <th style="text-align: center;">30 Days</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in elo_table_data %}
-                <tr>
-                <td><a href="{{ url_for('dashboard.athlete_dashboard') }}?athlete_id={{ row.id }}">{{ row.name }}</a></td>
-                <td style="text-align: center;">{{ row.elo }}</td>
-                <td style="text-align: center;">
-                    {% if row.movement is not none %}
-                    {% if row.movement > 0 %}
-                        <span style="color: green;">+{{ row.movement }}</span>
-                    {% elif row.movement < 0 %}
-                        <span style="color: red;">{{ row.movement }}</span>
-                    {% else %}
-                        0
-                    {% endif %}
-                    {% else %}
-                    —
-                    {% endif %}
-                </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            </table>
-        </div>
-        </div>
-
 
         {% if squad_load %}
         <script>
@@ -67,60 +67,101 @@
             const fatigue  = {{ squad_load | map(attribute='fatigue') | list | tojson }};
             const fitness  = {{ squad_load | map(attribute='fitness') | list | tojson }};
 
-    Plotly.newPlot('squad-summary', [
-        {
-            x: weeks,
-            y: t2,
-            type: 'bar',
-            name: 'T2 Minutes',
-            marker: { color: 'rgba(0, 123, 255, 0.6)' },
-            yaxis: 'y1'
-        },
-        {
-            x: weeks,
-            y: fatigue,
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: 'Avg Fatigue',
-            line: { color: 'red' },
-            yaxis: 'y2'
-        },
-        {
-            x: weeks,
-            y: fitness,
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: 'Avg Fitness',
-            line: { color: 'green' },
-            yaxis: 'y2'
-        }
-    ], {
-        title: 'Squad Weekly Load (Last 12 Weeks)',
-        yaxis: {
-            title: 'T2 Minutes',
-            side: 'left',
-            showgrid: false
-        },
-        yaxis2: {
-            overlaying: 'y',
-            side: 'right'
-        },
-        barmode: 'overlay',
-        height: 370,
-        width: 700,
-
-        legend: {
-            orientation: 'h',
-            x: 0.5,
-            y: -0.15,
-            xanchor: 'center'
-        }
-    });
-
+            Plotly.newPlot('squad-summary', [
+                {
+                    x: weeks,
+                    y: t2,
+                    type: 'bar',
+                    name: 'T2 Minutes',
+                    marker: { color: 'rgba(0, 123, 255, 0.6)' },
+                    yaxis: 'y1'
+                },
+                {
+                    x: weeks,
+                    y: fatigue,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Avg Fatigue',
+                    line: { color: 'red' },
+                    yaxis: 'y2'
+                },
+                {
+                    x: weeks,
+                    y: fitness,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Avg Fitness',
+                    line: { color: 'green' },
+                    yaxis: 'y2'
+                }
+            ], {
+                title: 'Squad Weekly Load (Last 12 Weeks)',
+                yaxis: {
+                    title: 'T2 Minutes',
+                    side: 'left',
+                    showgrid: false
+                },
+                yaxis2: {
+                    overlaying: 'y',
+                    side: 'right'
+                },
+                barmode: 'overlay',
+                height: 370,
+                width: 700,
+                legend: {
+                    orientation: 'h',
+                    x: 0.5,
+                    y: -0.15,
+                    xanchor: 'center'
+                }
+            });
         </script>
         {% endif %}
-       
-    </div>
 
+        {% if activity_chart_data %}
+        <script>
+            const activityWeeks = {{ activity_chart_data | map(attribute='week') | list | tojson }};
+            const waterData = {{ activity_chart_data | map(attribute='Water') | list | tojson }};
+            const ergData   = {{ activity_chart_data | map(attribute='Erg') | list | tojson }};
+            const otherData = {{ activity_chart_data | map(attribute='Other') | list | tojson }};
+
+            Plotly.newPlot('activity-summary', [
+                {
+                    x: activityWeeks,
+                    y: waterData,
+                    type: 'bar',
+                    name: 'Water',
+                    marker: { color: 'rgba(0,123,255,0.7)' }
+                },
+                {
+                    x: activityWeeks,
+                    y: ergData,
+                    type: 'bar',
+                    name: 'Erg',
+                    marker: { color: 'rgba(40,167,69,0.7)' }
+                },
+                {
+                    x: activityWeeks,
+                    y: otherData,
+                    type: 'bar',
+                    name: 'Other',
+                    marker: { color: 'rgba(255,193,7,0.7)' }
+                }
+            ], {
+                barmode: 'stack',
+                title: 'Weekly T2 Minutes by Activity (Last 12 Weeks)',
+                yaxis: { title: 'T2 Minutes' },
+                height: 350,
+                width: 700,
+                legend: {
+                    orientation: 'h',
+                    x: 0.5,
+                    y: -0.2,
+                    xanchor: 'center'
+                }
+            });
+        </script>
+        {% endif %}
+    </div>
 </body>
 </html>

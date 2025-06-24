@@ -285,10 +285,47 @@ def squad_dashboard():
                     "movement": movement
                 })
 
+    # 3. Weekly T2Minutes split by Activity
+    cursor.execute(f"""
+        SELECT
+            STR_TO_DATE(CONCAT(YEARWEEK(s.Session_Date, 3), ' Monday'), '%%X%%V %%W') AS week_start,
+            s.Activity,
+            SUM(s.T2Minutes) AS total_minutes
+        FROM Sessions s
+        JOIN Athletes a ON s.Athlete_ID = a.Athlete_ID
+        WHERE s.Session_Date >= %s {gender_clause}
+        GROUP BY YEARWEEK(s.Session_Date, 3), s.Activity
+        ORDER BY week_start
+    """, [start_date] + gender_params)
+
+    raw_split_minutes = cursor.fetchall()
+
+    # Organize into stacked format
+    activity_summary = {}
+    for row in raw_split_minutes:
+        week = row["week_start"].strftime("%Y-%m-%d")
+        activity = row["Activity"] or "Other"
+        if week not in activity_summary:
+            activity_summary[week] = {"Water": 0, "Erg": 0, "Other": 0}
+        if activity in activity_summary[week]:
+            activity_summary[week][activity] += row["total_minutes"]
+        else:
+            activity_summary[week]["Other"] += row["total_minutes"]
+
+    activity_chart_data = []
+    for week, values in sorted(activity_summary.items()):
+        activity_chart_data.append({
+            "week": week,
+            "Water": values["Water"],
+            "Erg": values["Erg"],
+            "Other": values["Other"]
+        })
+
     conn.close()
     return render_template(
         "squad_dashboard.html",
         squad_load=squad_load,
         elo_table_data = elo_table_data,
+        activity_chart_data=activity_chart_data,
         selected_gender=selected_gender
     )
