@@ -58,7 +58,7 @@
   <table>
     <thead>
       <tr>
-        <th>Date</th><th>Activity</th><th>Duration</th><th>Distance</th><th>Split</th><th>Type</th><th>Weight</th><th>Comment</th>
+        <th>Date</th><th>Activity</th><th>Duration</th><th>Distance</th><th>Split</th><th>T2 Min</th><th>Type</th><th>Weight</th><th>Comment</th>
         {% if current_user.coach %}<th>Athlete</th><th>Actions</th>{% endif %}
       </tr>
     </thead>
@@ -70,6 +70,7 @@
         <td>{{ s.Duration }}</td>
         <td>{{ s.Distance }}</td>
         <td>{{ s.Split }}</td>
+        <td>{{ s.T2Minutes }}</td>
         <td>{{ s.Type }}</td>
         <td>{{ s.Weight }}</td>
         <td>{{ s.Comment }}</td>
