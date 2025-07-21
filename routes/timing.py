@@ -76,8 +76,8 @@ def timing_view(piece_id):
         results = cursor.fetchall()
 
         for row in results:
-            print('Piece_ID:',row.get('Piece_ID'))
-            print('Distance: ',row.get('Distance'))
+            #print('Piece_ID:',row.get('Piece_ID'))
+            #print('Distance: ',row.get('Distance'))
 
             # Format Start
             if row['Start']:
@@ -118,7 +118,7 @@ def timing_view(piece_id):
 
             # Get raw GMT time for this boat type
             raw_gmt = gmts.get(row['Boat_Type'])
-            print(f"🧾 Raw GMT value from DB for {row['Boat_Type']}: {raw_gmt}")
+            #print(f"🧾 Raw GMT value from DB for {row['Boat_Type']}: {raw_gmt}")
     
             # Convert to seconds for use in JavaScript
             row['GMT_value'] = time_to_seconds(raw_gmt)

@@ -3,6 +3,7 @@ import gzip
 import boto3
 import dropbox
 import json, requests
+import process_fit_sessions
 from db import get_db_connection
 from dropbox.files import SharedLink, FileMetadata, FolderMetadata
 
@@ -140,3 +141,4 @@ def get_fitfiles():
 
 if __name__ == "__main__":
     get_fitfiles()
+    process_fit_sessions.main()    
