@@ -61,8 +61,8 @@ def generate_daily_elo(results, seats, athletes, start_date):
 
     # Step 1: Build date range
     outing_dates = sorted({row["Outing_Date"] for row in results if row["Outing_Date"]})
-    end_date = outing_dates[-1]
-    
+    end_date = date.today()
+
     # Step 2: Initialize ratings at start_date
     elo_history = defaultdict(dict)
     current_ratings = {athlete["Athlete_ID"]: 1000 for athlete in athletes}
@@ -75,16 +75,17 @@ def generate_daily_elo(results, seats, athletes, start_date):
         crew_athletes[seat["Crew_ID"]].append(seat["Athlete_ID"])
 
     # Step 4: Process each day in date range
-    date = start_date + timedelta(days=1)
-    while date <= end_date:
+    current_date = start_date + timedelta(days=1)
+    while current_date <= end_date:
+
         # Step 4a: Filter results for this day
-        day_results = [r for r in results if r["Outing_Date"] == date]
+        day_results = [r for r in results if r["Outing_Date"] == current_date]
         
         # If no results, carry over previous day
         if not day_results:
             for athlete_id in current_ratings:
-                elo_history[athlete_id][date] = current_ratings[athlete_id]
-            date += timedelta(days=1)
+                elo_history[athlete_id][current_date] = current_ratings[athlete_id]
+            current_date += timedelta(days=1)
             continue
         
         # Step 4b: Process each piece on this day
@@ -101,7 +102,11 @@ def generate_daily_elo(results, seats, athletes, start_date):
                 athletes_in_crew = crew_athletes.get(crew_id, [])
                 if not athletes_in_crew:
                     continue
-                crew_rating = sum(current_ratings[a] for a in athletes_in_crew) / len(athletes_in_crew)
+                known_athletes = [a for a in athletes_in_crew if a in current_ratings]
+                if not known_athletes:
+                    continue  # skip crew entirely if no known athletes
+                crew_rating = sum(current_ratings[a] for a in known_athletes) / len(known_athletes)
+
                 crew_ratings[crew_id] = crew_rating
 
             # Convert to percent_ahead
@@ -109,6 +114,10 @@ def generate_daily_elo(results, seats, athletes, start_date):
                 crew_id: 100 + (rating - 1000) / 50         # So 50 rating points changes expected GMT % by one point
                 for crew_id, rating in crew_ratings.items()
             }
+
+            # ✅ Skip pieces where no crews have valid athletes
+            if not expected_percent:
+                continue
 
             # Compute expected_fleet_percent
             expected_fleet_percent = sum(expected_percent.values()) / len(expected_percent)
@@ -141,19 +150,28 @@ def generate_daily_elo(results, seats, athletes, start_date):
 
                 for athlete_id in crew_athletes.get(crew_id, []):
                     athlete_gains[athlete_id] += per_athlete_gain
+        
+        # Clean up athlete_gains to remove non-rated athletes
+        athlete_gains = {aid: gain for aid, gain in athlete_gains.items() if aid in current_ratings}
 
-        # Step 4c: Update ratings and log history
+        # Step 4c: If no athlete gains, carry over previous ratings
+        if not athlete_gains:
+            for athlete_id in current_ratings:
+                elo_history[athlete_id][current_date] = current_ratings[athlete_id]
+            current_date += timedelta(days=1)
+            continue
+
+        # Otherwise, apply gains
         for athlete_id, gain in athlete_gains.items():
-            current_ratings[athlete_id] += gain
+            if athlete_id in current_ratings:
+                current_ratings[athlete_id] += gain
         for athlete_id in current_ratings:
-            elo_history[athlete_id][date] = current_ratings[athlete_id]
+            elo_history[athlete_id][current_date] = current_ratings[athlete_id]
 
         # Next day
-        date += timedelta(days=1)
+        current_date += timedelta(days=1)
 
     return elo_history, result_updates
-
-
 
 if __name__ == "__main__":
     add_elo()

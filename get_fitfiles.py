@@ -1,3 +1,6 @@
+import subprocess
+import os
+from os.path import basename
 import io
 import gzip
 import boto3
@@ -78,14 +81,13 @@ def walk_folder(link_url: str, rel_path: str | None = None):
 
 # -----------------------------------------------------------------------------
 
-def process_athlete(aid: str, link: str) -> None:
-    """
-    Walk the athlete’s shared-folder link, download every   *.fit   OR   *.fit.gz
-    file, decompress if required, and upload the final  *.fit  to S3.
+def already_in_s3(aid, filename, s3_keys):
+    return any(basename(key) == filename for key in s3_keys)
 
-    S3 key pattern:  fitfiles/<Athlete_ID>/<filename>.fit
-    """
+def process_athlete(aid: str, link: str) -> None:
     print(f"\n• Athlete {aid}")
+    s3_keys = list(process_fit_sessions.iter_fit_keys_for_athlete(aid))
+    new_files = []
 
     try:
         for entry, rel in walk_folder(link):
@@ -93,33 +95,48 @@ def process_athlete(aid: str, link: str) -> None:
             is_gz  = name_low.endswith(".fit.gz") or name_low.endswith(".gz")
             is_fit = name_low.endswith(".fit")
 
-            # skip anything that isn't fit-related
             if not (is_gz or is_fit):
                 continue
 
-            # Build the path inside the shared link (Dropbox needs the leading /)
+            # Final filename to be used in S3
+            final_name = entry.name[:-3] if is_gz else entry.name
+
+            if already_in_s3(aid, final_name, s3_keys):
+                print(f"   – skipping {final_name} (already in S3)")
+                continue
+
             path = f"/{rel}/{entry.name}" if rel else f"/{entry.name}"
             print(f"   – downloading {path.lstrip('/')}")
 
-            # -- download from Dropbox ----------------------------------------
+            # Download from Dropbox
             _, resp = dbx.sharing_get_shared_link_file(url=link, path=path)
 
-            # -- decompress if it's a .gz -------------------------------------
             if is_gz:
                 with gzip.GzipFile(fileobj=io.BytesIO(resp.content)) as gz:
                     file_bytes = gz.read()
-                final_name = entry.name[:-3]        # strip ".gz"  →  *.fit
             else:
                 file_bytes = resp.content
-                final_name = entry.name             # already *.fit
 
-            # -- upload to S3 --------------------------------------------------
+            # Upload to S3
             s3_key = f"{S3_PREFIX}/{aid}/{final_name}"
             print(f"   – uploading {final_name} to S3 path: {s3_key}")
             upload_to_s3(io.BytesIO(file_bytes), s3_key)
 
+            # Add to new files list
+            new_files.append(s3_key)
+
     except Exception as exc:
         print("   ! error:", exc)
+        return
+
+    # 🔁 Process each new file via subprocess
+    for s3_key in new_files:
+        print(f"   → processing {s3_key}")
+        subprocess.run([
+            "python3", "process_fit_sessions.py",
+            "--aid", str(aid),
+            "--file", s3_key
+        ])
 
 def get_fitfiles():
     conn = get_db_connection()
@@ -140,5 +157,4 @@ def get_fitfiles():
 
 
 if __name__ == "__main__":
-    get_fitfiles()
-    process_fit_sessions.main()    
+    get_fitfiles() 

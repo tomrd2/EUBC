@@ -16,7 +16,7 @@ Requirements: boto3, fitparse, db.get_db_connection()
 """
 
 from __future__ import annotations
-
+import argparse
 import io
 import logging
 from datetime import datetime, timezone, timedelta
@@ -226,30 +226,42 @@ def upsert_session(cur, aid: int, dt: datetime, activity: str,
     insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
 # ---------------------------------------------------------------------------
 
+def process_single_file(cur, aid, key):
+    try:
+        buf = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"].read()
+    except Exception as e:
+        logger.error("    ! S3 download failed: %s", e)
+        return
+
+    rest, max_hr = get_athlete_hr(cur, aid)
+    try:
+        dt, act, dur_s, dist_m, comment, t2 = parse_fit_bytes(buf, rest, max_hr)
+    except Exception as e:
+        logger.error("    ! FIT parse failed: %s", e)
+        return
+
+    fname = key.rsplit("/", 1)[-1]
+    upsert_session(cur, aid, dt, act, dur_s, dist_m, comment, t2, fname)
 
 
 # ── main loop ─────────────────────────────────────────────────────────────
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--aid', type=int, help="Athlete ID")
+    parser.add_argument('--file', help="Specific S3 key of FIT file to process")
+    args = parser.parse_args()
+
     conn = get_db_connection(); cur = conn.cursor()
     logger.info("Importing FIT sessions from S3 → MySQL …")
 
-    for aid, _ in iter_athletes_with_links(cur):
-        logger.info("Athlete %s", aid)
-        for key in iter_fit_keys_for_athlete(aid):
-            try:
-                buf = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"].read()
-            except Exception as e:
-                logger.error("    ! S3 download failed: %s", e); continue
-
-            rest,max_hr = get_athlete_hr(cur, aid)
-            try:
-                dt, act, dur_s, dist_m, comment, t2 = parse_fit_bytes(buf, rest, max_hr)
-            except Exception as e:
-                logger.error("    ! FIT parse failed: %s", e); continue
-
-            fname = key.rsplit("/",1)[-1]
-            upsert_session(cur, aid, dt, act, dur_s, dist_m, comment, t2, fname)
+    if args.aid and args.file:
+        process_single_file(cur, args.aid, args.file)
+    else:
+        for aid, _ in iter_athletes_with_links(cur):
+            logger.info("Athlete %s", aid)
+            for key in iter_fit_keys_for_athlete(aid):
+                process_single_file(cur, aid, key)
 
     conn.commit(); cur.close(); conn.close()
     logger.info("✓ All done")
