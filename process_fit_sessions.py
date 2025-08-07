@@ -30,7 +30,8 @@ from db import get_db_connection
 S3_BUCKET = "eubctrackingdata"
 S3_PREFIX = "fitfiles"
 
-logging.basicConfig(level="INFO", format="%(asctime)s %(levelname)-7s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s")
+
 logger = logging.getLogger(__name__)
 
 s3 = boto3.client("s3")  # ~/.aws/credentials
@@ -91,8 +92,15 @@ def get_athlete_hr(cur, aid: int) -> tuple[int | None, int | None]:
     cur.execute("SELECT Rest_HR, Max_HR FROM Athletes WHERE Athlete_ID=%s", (aid,))
     r = cur.fetchone()
     if not r:
+        logger.warning("No HR row found for Athlete_ID=%s", aid)
         return None, None
-    return row_val(r, 0), row_val(r, 1)
+    logger.debug("Fetched HR for %s: %s", aid, r)
+    # Access as tuple or dict
+    try:
+        return r["Rest_HR"], r["Max_HR"]
+    except (TypeError, KeyError):
+        # Fall back to positional access
+        return r[0], r[1]
 
 
 def sport_factor(activity: str) -> float:
@@ -104,6 +112,9 @@ def sport_factor(activity: str) -> float:
 # ── FIT parsing ───────────────────────────────────────────────────────────
 
 def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
+
+    logger.debug("rest_hr: %s, max_hr: %s", rest_hr, max_hr)
+
     fit = FitFile(io.BytesIO(buf)); fit.parse()
     sport = sub = "unknown"; dur_s = dist_m = 0; dt: datetime | None = None
 
@@ -131,10 +142,33 @@ def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
     if rest_hr and max_hr and max_hr > rest_hr:
         zones = [0]*6; last = None
         for rec in fit.get_messages("record"):
+            logger.debug("Checking record: %s", rec.get_values())
+
             hr = rec.get_value("heart_rate"); ts = rec.get_value("timestamp")
-            if hr is None or ts is None: continue
-            if last is None: last = ts; continue
-            dsec = (ts-last).total_seconds(); last = ts
+
+            logger.debug("HR record: %s bpm at %s", hr, ts)
+
+            if hr is None or ts is None:
+                continue
+
+            if last is not None:
+                dsec = (ts - last).total_seconds()
+
+                hr_pct = (hr - rest_hr) / (max_hr - rest_hr)
+                if hr_pct < 0.60:
+                    pass  # not T2 zone
+                else:
+                    idx = (
+                        0 if hr_pct < .75 else
+                        1 if hr_pct < .83 else
+                        2 if hr_pct < .88 else
+                        3 if hr_pct < .93 else
+                        4 if hr_pct < .99 else 5
+                    )
+                    zones[idx] += dsec
+
+            last = ts  # always update last
+
             hr_pct = (hr-rest_hr)/(max_hr-rest_hr)
             if hr_pct < .60: continue
             idx = (0 if hr_pct<.75 else 1 if hr_pct<.83 else 2 if hr_pct<.88 else
@@ -143,6 +177,10 @@ def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
         weights=[0.9,1.0,1.35,2.1,5.0,9.0]
         t2_raw=sum(z*w for z,w in zip(zones,weights))/60
         t2=int(round(t2_raw*sport_factor(activity)))
+
+        logger.debug("Zones: %s", zones)
+        logger.debug("T2 raw: %.2f → final T2: %s", t2_raw, t2)
+
 
     return dt, activity, dur_s, dist_m, comment, t2
 

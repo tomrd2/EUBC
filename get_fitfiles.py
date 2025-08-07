@@ -138,6 +138,13 @@ def process_athlete(aid: str, link: str) -> None:
             "--file", s3_key
         ])
 
+        print(f"   → processing results: {s3_key}")
+        subprocess.run([
+            "python3", "process_results.py",
+            "--aid", str(aid),
+            "--file", s3_key
+        ])
+
 def get_fitfiles():
     conn = get_db_connection()
     cur  = conn.cursor()

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import logging
+import argparse
 from math import sin, cos, sqrt, atan2, radians
 from datetime import datetime, timezone, timedelta
 from typing import Iterator, Tuple
@@ -364,63 +365,78 @@ def insert_results(cursor, pieces, points, outings, aid):
             gmt_percent
         ))
 
+def process_single_result(cur, aid: int, key: str):
+    try:
+        buf = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"].read()
+    except Exception as e:
+        logger.error("    ! S3 download failed: %s", e)
+        return
+
+    points = parse_fit_bytes(buf)
+
+    if not points:
+        print("No points")
+        return
+
+    print("Points:", points[-1]['pt_no'], points[1]['time'])
+
+    outings = get_outings(points[1]['time'], aid, cur)
+    if not outings:
+        print("No outings")
+        return
+
+    print("Outing:", outings[0]['Outing_ID'])
+
+    for outing in outings:
+        pieces = get_pieces(outing['Outing_ID'], cur)
+
+        if not pieces:
+            print("No pieces")
+            continue
+
+        pieces = get_results(points, pieces)
+        reorder_same_distance_pieces(pieces)
+
+        is_valid, ordered_pieces = check_chronological_validity(pieces)
+
+        if is_valid:
+            print("✅ Pieces are in valid chronological order.")
+            for piece in pieces:
+                print(
+                    f"Piece {piece['Piece_ID']}: start={piece['start']} end={piece['end']} "
+                    f"time={piece['time']} distance={points[piece['end']]['total_distance'] - points[piece['start']]['total_distance']}"
+                )
+            insert_results(cur, pieces, points, outings, aid)
+        else:
+            print("❌ Pieces are NOT in valid chronological order.")
+            print("Chronological Piece_IDs:", [p['Piece_ID'] for p in ordered_pieces])
+
+
 
 # ── main loop ─────────────────────────────────────────────────────────────
 
+import argparse
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--aid", type=int, help="Athlete ID")
+    parser.add_argument("--file", type=str, help="S3 key to process")
+    args = parser.parse_args()
+
     conn = get_db_connection(); cur = conn.cursor()
-    logger.info("Importing FIT sessions from S3 → MySQL …")
+    logger.info("Importing FIT results from S3 → MySQL …")
 
-    for aid, _ in iter_athletes_with_links(cur):
-        logger.info("Athlete %s", aid)
-        for key in iter_fit_keys_for_athlete(aid):
-            try:
-                buf = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"].read()
-            except Exception as e:
-                logger.error("    ! S3 download failed: %s", e); continue
-            
-            points = parse_fit_bytes(buf)
-
-            if points:
-
-                print("Points: " + str(points[-1]['pt_no']), points[1]['time'])
-
-                outings = get_outings(points[1]['time'],aid,cur)
-                if outings:
-                    print("Outing: " + str(outings[0]['Outing_ID']))
-
-                    for outing in outings:
-                        pieces = get_pieces(outing['Outing_ID'],cur)
-
-                        if pieces:
-                            pieces = get_results(points,pieces)
-                            reorder_same_distance_pieces(pieces)
-
-                            is_valid, ordered_pieces = check_chronological_validity(pieces)
-
-                            if is_valid:
-                                print("✅ Pieces are in valid chronological order.")
-                                for piece in pieces:
-
-                                    print(
-                                        f"Piece {piece['Piece_ID']}: start={piece['start']} end={piece['end']} "
-                                        f"time={piece['time']} distance={points[piece['end']]['total_distance'] - points[piece['start']]['total_distance']}"
-                                    )
-                                insert_results(cur,pieces,points,outings,aid)
-                                
-                            else:
-                                print("❌ Pieces are NOT in valid chronological order.")
-                                print("Chronological Piece_IDs:", [p['Piece_ID'] for p in ordered_pieces])
-                        else:
-                            print("No pieces")
-                else:
-                    print("No outings")
-            else:
-                print("No points")
-
+    if args.aid and args.file:
+        process_single_result(cur, args.aid, args.file)
+    else:
+        # fallback to process all (legacy batch behavior)
+        for aid, _ in iter_athletes_with_links(cur):
+            for key in iter_fit_keys_for_athlete(aid):
+                process_single_result(cur, aid, key)
 
     conn.commit(); cur.close(); conn.close()
     logger.info("✓ All done")
+
 
 if __name__ == "__main__":
     main()
