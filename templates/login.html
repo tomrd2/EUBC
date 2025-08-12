@@ -51,13 +51,11 @@
 <body>
   {% include "_header.html" %}
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% with messages = get_flashed_messages(category_filter=['login_error']) %}
     {% if messages %}
-      <div class="flashes">
-        {% for category, msg in messages %}
-          <div class="flash {{ category }}">{{ msg }}</div>
-        {% endfor %}
-      </div>
+      {% for msg in messages %}
+        <div class="flash error">{{ msg }}</div>
+      {% endfor %}
     {% endif %}
   {% endwith %}
 

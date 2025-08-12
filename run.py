@@ -78,29 +78,23 @@ def login():
                 user = cursor.fetchone()
 
             if user and check_password_hash(user['Password_Hash'], password):
-                # Log the user in
                 login_user(User(user))
-                print(current_user.name + " logged in")
-
-                # Record last login (use DB time to avoid timezone issues)
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "UPDATE Athletes SET Last_Login = NOW() WHERE Athlete_ID = %s",
                         (user['Athlete_ID'],)
                     )
                 conn.commit()
-
-                # Optionally flash a success if you want
-                # flash("Welcome back!", "success")
-
                 return redirect(url_for('app_menu'))
             else:
-                flash("Invalid credentials", "error")
+                # Only show this on the login page
+                flash("Invalid credentials", "login_error")
                 return redirect(url_for('login'))
         finally:
             conn.close()
 
     return render_template('login.html')
+
 
 @app.route('/')
 def app_home():
