@@ -43,10 +43,23 @@
     .menu-container a:hover {
       background-color: rgba(0, 31, 63, 1);
     }
+
+    .flash.error { background:#ffe5e5; color:#a40000; padding:8px 12px; border-radius:6px; margin-bottom:12px; }
+    .flash.success { background:#e8fff0; color:#065f46; padding:8px 12px; border-radius:6px; margin-bottom:12px; }
   </style>
 </head>
 <body>
   {% include "_header.html" %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flashes">
+        {% for category, msg in messages %}
+          <div class="flash {{ category }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
 
   <div class="menu-container">
     <form action="{{ url_for('login') }}" method="post">

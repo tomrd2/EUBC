@@ -68,21 +68,37 @@ def load_user(user_id):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
 
         conn = get_db_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM Athletes WHERE Email = %s", (email,))
-            user = cursor.fetchone()
-        conn.close()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM Athletes WHERE Email = %s", (email,))
+                user = cursor.fetchone()
 
-        if user and check_password_hash(user['Password_Hash'], password):
-            login_user(User(user))
-            print(current_user.name + " logged in")
-            return redirect(url_for('app_menu'))
-        else:
-            return "Invalid credentials", 401
+            if user and check_password_hash(user['Password_Hash'], password):
+                # Log the user in
+                login_user(User(user))
+                print(current_user.name + " logged in")
+
+                # Record last login (use DB time to avoid timezone issues)
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE Athletes SET Last_Login = NOW() WHERE Athlete_ID = %s",
+                        (user['Athlete_ID'],)
+                    )
+                conn.commit()
+
+                # Optionally flash a success if you want
+                # flash("Welcome back!", "success")
+
+                return redirect(url_for('app_menu'))
+            else:
+                flash("Invalid credentials", "error")
+                return redirect(url_for('login'))
+        finally:
+            conn.close()
 
     return render_template('login.html')
 
