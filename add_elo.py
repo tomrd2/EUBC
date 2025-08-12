@@ -123,7 +123,12 @@ def generate_daily_elo(results, seats, athletes, start_date):
             expected_fleet_percent = sum(expected_percent.values()) / len(expected_percent)
 
             # Compute actual_fleet_percent (from GMT_Percent)
-            actual_fleet_percent = sum(r["GMT_Percent"] for r in piece_results) / len(piece_results)
+            valid_percents = [r["GMT_Percent"] for r in piece_results if r["GMT_Percent"] is not None]
+
+            if not valid_percents:
+                continue  # skip this piece entirely
+
+            actual_fleet_percent = sum(valid_percents) / len(valid_percents)
 
             # Piece adjustment
             piece_adjustment = actual_fleet_percent / expected_fleet_percent if expected_fleet_percent else 1
@@ -138,7 +143,9 @@ def generate_daily_elo(results, seats, athletes, start_date):
             for result in piece_results:
                 crew_id = result["Crew_ID"]
                 actual = result["GMT_Percent"]
-                expected = adjusted_expected[crew_id]
+                expected = adjusted_expected.get(crew_id)
+                if expected is None or actual is None:
+                    continue  # Skip this record if data is missing
                 crew_gain = (actual - expected)
 
                 # Store for updating Results table later

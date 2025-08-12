@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import io
 import logging
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from typing import Iterator, Tuple
 
@@ -83,7 +84,7 @@ def iter_fit_keys_for_athlete(aid: int) -> Iterator[str]:
     for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=pref):
         for obj in page.get("Contents", []):
             key = obj["Key"]
-            if key.lower().endswith(".fit"):
+            if key.lower().endswith((".fit", ".tcx")):
                 yield key
 
 # ── HR helpers ───────────────────────────────────────────────────────────
@@ -109,12 +110,51 @@ def sport_factor(activity: str) -> float:
         "Bike": 0.80, "Run": 1.40, "Swim": 1.20, "Brisk Walk": 0.50,
     }.get(activity, 0.60)
 
+def calculate_t2(
+    hr_data: list[tuple[datetime, int]],
+    rest_hr: int | None,
+    max_hr: int | None,
+    activity: str
+) -> int:
+    """
+    Compute T2Minutes from a list of (timestamp, HR) tuples.
+    """
+    if not (rest_hr and max_hr and max_hr > rest_hr):
+        return 0
+
+    zones = [0] * 6
+    last_ts = None
+
+    for ts, hr in hr_data:
+        if last_ts:
+            dsec = (ts - last_ts).total_seconds()
+            hr_pct = (hr - rest_hr) / (max_hr - rest_hr)
+
+            if hr_pct >= 0.60:
+                idx = (
+                    0 if hr_pct < .75 else
+                    1 if hr_pct < .83 else
+                    2 if hr_pct < .88 else
+                    3 if hr_pct < .93 else
+                    4 if hr_pct < .99 else 5
+                )
+                zones[idx] += dsec
+
+        last_ts = ts
+
+    weights = [0.9, 1.0, 1.35, 2.1, 5.0, 9.0]
+    t2_raw = sum(z * w for z, w in zip(zones, weights)) / 60
+    t2 = int(round(t2_raw * sport_factor(activity)))
+
+    logger.debug("Zones: %s", zones)
+    logger.debug("T2 raw: %.2f → final T2: %s", t2_raw, t2)
+
+    return t2
+
+
 # ── FIT parsing ───────────────────────────────────────────────────────────
 
 def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
-
-    logger.debug("rest_hr: %s, max_hr: %s", rest_hr, max_hr)
-
     fit = FitFile(io.BytesIO(buf)); fit.parse()
     sport = sub = "unknown"; dur_s = dist_m = 0; dt: datetime | None = None
 
@@ -138,51 +178,58 @@ def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
     activity = mapping.get((sport, sub)) or mapping.get((sport, None)) or "Other"
     comment  = f"Sport: {sport} | Sub: {sub or 'n/a'}"
 
-    t2 = 0
-    if rest_hr and max_hr and max_hr > rest_hr:
-        zones = [0]*6; last = None
-        for rec in fit.get_messages("record"):
-            logger.debug("Checking record: %s", rec.get_values())
+    # 🆕 Standardised HR data
+    hr_data = []
+    for rec in fit.get_messages("record"):
+        hr = rec.get_value("heart_rate")
+        ts = rec.get_value("timestamp")
+        if hr is not None and ts is not None:
+            hr_data.append((ts, hr))
 
-            hr = rec.get_value("heart_rate"); ts = rec.get_value("timestamp")
-
-            logger.debug("HR record: %s bpm at %s", hr, ts)
-
-            if hr is None or ts is None:
-                continue
-
-            if last is not None:
-                dsec = (ts - last).total_seconds()
-
-                hr_pct = (hr - rest_hr) / (max_hr - rest_hr)
-                if hr_pct < 0.60:
-                    pass  # not T2 zone
-                else:
-                    idx = (
-                        0 if hr_pct < .75 else
-                        1 if hr_pct < .83 else
-                        2 if hr_pct < .88 else
-                        3 if hr_pct < .93 else
-                        4 if hr_pct < .99 else 5
-                    )
-                    zones[idx] += dsec
-
-            last = ts  # always update last
-
-            hr_pct = (hr-rest_hr)/(max_hr-rest_hr)
-            if hr_pct < .60: continue
-            idx = (0 if hr_pct<.75 else 1 if hr_pct<.83 else 2 if hr_pct<.88 else
-                   3 if hr_pct<.93 else 4 if hr_pct<.99 else 5)
-            zones[idx] += dsec
-        weights=[0.9,1.0,1.35,2.1,5.0,9.0]
-        t2_raw=sum(z*w for z,w in zip(zones,weights))/60
-        t2=int(round(t2_raw*sport_factor(activity)))
-
-        logger.debug("Zones: %s", zones)
-        logger.debug("T2 raw: %.2f → final T2: %s", t2_raw, t2)
-
+    t2 = calculate_t2(hr_data, rest_hr, max_hr, activity)
 
     return dt, activity, dur_s, dist_m, comment, t2
+
+
+def parse_tcx_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
+    ns = {'tcx': 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'}
+    root = ET.fromstring(buf)
+    activity_node = root.find(".//tcx:Activity", ns)
+    if activity_node is None:
+        raise ValueError("No Activity found in TCX")
+
+    sport = activity_node.attrib.get("Sport", "Other")
+    activity = sport.title()
+    comment = f"Sport: {sport}"
+
+    id_node = activity_node.find("tcx:Id", ns)
+    dt = datetime.fromisoformat(id_node.text.replace("Z", "+00:00")) if id_node is not None else datetime.now(timezone.utc)
+
+    dist_m = dur_s = 0
+    hr_data = []
+
+    for tp in root.findall(".//tcx:Trackpoint", ns):
+        ts_node = tp.find("tcx:Time", ns)
+        hr_node = tp.find("tcx:HeartRateBpm/tcx:Value", ns)
+        dist_node = tp.find("tcx:DistanceMeters", ns)
+
+        if ts_node is None or hr_node is None:
+            continue
+
+        ts = datetime.fromisoformat(ts_node.text.replace("Z", "+00:00"))
+        hr = int(hr_node.text)
+        hr_data.append((ts, hr))
+
+        if dist_node is not None and dist_node.text:
+            dist_m = int(float(dist_node.text))  # will keep getting overwritten
+
+    if hr_data:
+        dur_s = int((hr_data[-1][0] - dt).total_seconds())
+
+    t2 = calculate_t2(hr_data, rest_hr, max_hr, activity)
+
+    return dt, activity, dur_s, dist_m, comment, t2
+
 
 # ── UPSERT (merged) ───────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
@@ -272,13 +319,20 @@ def process_single_file(cur, aid, key):
         return
 
     rest, max_hr = get_athlete_hr(cur, aid)
+    fname = key.rsplit("/", 1)[-1].lower()
+
     try:
-        dt, act, dur_s, dist_m, comment, t2 = parse_fit_bytes(buf, rest, max_hr)
+        if fname.endswith(".fit"):
+            dt, act, dur_s, dist_m, comment, t2 = parse_fit_bytes(buf, rest, max_hr)
+        elif fname.endswith(".tcx"):
+            dt, act, dur_s, dist_m, comment, t2 = parse_tcx_bytes(buf, rest, max_hr)
+        else:
+            logger.warning("    ! Unsupported file type: %s", fname)
+            return
     except Exception as e:
-        logger.error("    ! FIT parse failed: %s", e)
+        logger.error("    ! File parse failed (%s): %s", fname, e)
         return
 
-    fname = key.rsplit("/", 1)[-1]
     upsert_session(cur, aid, dt, act, dur_s, dist_m, comment, t2, fname)
 
 

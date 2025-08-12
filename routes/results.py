@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, Response
+from flask import Blueprint, render_template, request, redirect, url_for, session, Response, flash
+
 from flask_login import login_required, current_user
 from db import get_db_connection
 
@@ -124,11 +125,12 @@ def det_results_view(outing_id):
         cursor.execute("""
             SELECT 
                 r.Piece_ID,
+                r.Crew_ID,
                 r.Time,
                 r.GMT_Percent,
                 r.Exp_Percent,
                 r.Net_Gain,
-                c.Crew_ID,
+                r.Unrated,
                 c.Crew_Name,
                 c.Boat_Type,
                 c.Hull_Name
@@ -159,3 +161,50 @@ def det_results_view(outing_id):
         pieces=pieces,
         results_by_piece=results_by_piece
     )
+
+@results_bp.route('/det_results/<int:outing_id>/unrated', methods=['POST'])
+@login_required
+def update_unrated(outing_id):
+    from flask import flash  # ensure flash is imported at top too
+
+    def parse_keys(values):
+        pairs = []
+        for v in values:
+            try:
+                p, c = v.split(':', 1)
+                pairs.append((int(p), int(c)))
+            except Exception:
+                continue
+        return pairs
+
+    # These names must match the template inputs
+    displayed = parse_keys(request.form.getlist('row_keys'))        # all rows shown
+    checked   = set(parse_keys(request.form.getlist('unrated_keys')))  # only the checked ones
+
+    if not displayed:
+        flash("No results to update.", "warning")
+        return redirect(url_for('results.det_results_view', outing_id=outing_id))
+
+    unchecked = set(displayed) - checked
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # Mark checked as Unrated = 1
+            for piece_id, crew_id in checked:
+                cursor.execute(
+                    "UPDATE Results SET Unrated = 1 WHERE Piece_ID = %s AND Crew_ID = %s",
+                    (piece_id, crew_id)
+                )
+            # Mark unchecked (but displayed) as Unrated = 0
+            for piece_id, crew_id in unchecked:
+                cursor.execute(
+                    "UPDATE Results SET Unrated = 0 WHERE Piece_ID = %s AND Crew_ID = %s",
+                    (piece_id, crew_id)
+                )
+        conn.commit()
+        flash("Unrated flags updated.", "success")
+    finally:
+        conn.close()
+
+    return redirect(url_for('results.det_results_view', outing_id=outing_id))

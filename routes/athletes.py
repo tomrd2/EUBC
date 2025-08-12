@@ -40,20 +40,29 @@ def add_athlete():
 def edit_athlete(athlete_id):
     data = request.form
     sculls_value = 1 if 'Sculls' in data else 0
-    cox_value = 1 if 'Cox' in data else 0
+    coach_value  = 1 if 'Coach'  in data else 0  # <-- NEW
 
     conn = get_db_connection()
     with conn.cursor() as cursor:
         cursor.execute("""
-            UPDATE Athletes SET Full_Name=%s, Initials=%s, M_W=%s, Side=%s, Sculls=%s, Cox=%s, Joined=%s, Email=%s
+            UPDATE Athletes
+            SET Full_Name=%s,
+                Initials=%s,
+                M_W=%s,
+                Side=%s,
+                Sculls=%s,
+                Coach=%s,
+                Joined=%s,
+                Email=%s
             WHERE Athlete_ID=%s
         """, (
             data['Full_Name'], data['Initials'], data['M_W'], data['Side'],
-            sculls_value, cox_value, data['Joined'], data['Email'], athlete_id
+            sculls_value, coach_value, data['Joined'], data['Email'], athlete_id
         ))
         conn.commit()
     conn.close()
     return redirect(url_for('athletes.athletes'))
+
 
 @athletes_bp.route('/reset_password/<int:athlete_id>', methods=['POST'])
 def reset_password(athlete_id):

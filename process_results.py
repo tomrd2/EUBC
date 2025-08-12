@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import logging
 import argparse
+import xml.etree.ElementTree as ET
 from math import sin, cos, sqrt, atan2, radians
 from datetime import datetime, timezone, timedelta
 from typing import Iterator, Tuple
@@ -168,6 +169,48 @@ def parse_fit(fitfile):
 
     return points
 
+def parse_tcx_bytes(buf: bytes):
+    ns = {'tcx': 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'}
+    root = ET.fromstring(buf)
+    trackpoints = root.findall('.//tcx:Trackpoint', ns)
+
+    points = []
+    pt_no = 0
+    for tp in trackpoints:
+        time_node = tp.find("tcx:Time", ns)
+        pos_node  = tp.find("tcx:Position", ns)
+
+        if time_node is None or pos_node is None:
+            continue
+
+        lat_node = pos_node.find("tcx:LatitudeDegrees", ns)
+        lon_node = pos_node.find("tcx:LongitudeDegrees", ns)
+
+        if lat_node is None or lon_node is None:
+            continue
+
+        try:
+            timestamp = datetime.fromisoformat(time_node.text.replace("Z", "+00:00"))
+            lat = float(lat_node.text)
+            lon = float(lon_node.text)
+        except Exception:
+            continue
+
+        points.append({
+            'pt_no': pt_no,
+            'latitude': lat,
+            'longitude': lon,
+            'time': timestamp,
+            'distance': 0,
+            'total_distance': 0,
+            'pace': timedelta(minutes=10),
+            'smoothed': timedelta(hours=1),
+        })
+
+        pt_no += 1
+
+    return get_points(points)
+
 
 # ── FIT parsing ───────────────────────────────────────────────────────────
 
@@ -196,6 +239,14 @@ def get_outings(ts,aid,cur):
     cur.execute(query)
 
     return cur.fetchall()
+
+def parse_file_bytes(key: str, buf: bytes):
+    if key.lower().endswith(".tcx"):
+        return parse_tcx_bytes(buf)
+    elif key.lower().endswith(".fit"):
+        return parse_fit_bytes(buf)
+    else:
+        raise ValueError(f"Unsupported file type for key: {key}")
 
 def get_pieces(outingid,cur):
 
@@ -372,7 +423,11 @@ def process_single_result(cur, aid: int, key: str):
         logger.error("    ! S3 download failed: %s", e)
         return
 
-    points = parse_fit_bytes(buf)
+    try:
+        points = parse_file_bytes(key, buf)
+    except Exception as e:
+        logger.error("    ! File parsing failed: %s", e)
+        return
 
     if not points:
         print("No points")

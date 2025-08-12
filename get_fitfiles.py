@@ -94,12 +94,17 @@ def process_athlete(aid: str, link: str) -> None:
             name_low = entry.name.lower()
             is_gz  = name_low.endswith(".fit.gz") or name_low.endswith(".gz")
             is_fit = name_low.endswith(".fit")
+            is_tcx = name_low.endswith(".tcx")
 
-            if not (is_gz or is_fit):
+            if not (is_gz or is_fit or is_tcx):
                 continue
 
             # Final filename to be used in S3
-            final_name = entry.name[:-3] if is_gz else entry.name
+            if is_gz:
+                final_name = entry.name[:-3]  # remove .gz
+            else:
+                final_name = entry.name       # fit or tcx
+
 
             if already_in_s3(aid, final_name, s3_keys):
                 print(f"   – skipping {final_name} (already in S3)")
