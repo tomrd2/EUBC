@@ -382,28 +382,53 @@ def format_time(dt):
         return f"{hours:02}:{minutes:02}:{seconds:02}.{milliseconds:02}"
     return None
 
+def is_crew_unrateable(cur, crew_id: int) -> bool:
+    """
+    A crew is unrateable if any of its seats have a NULL Athlete_ID
+    OR any seated athlete has Coach=1.
+    """
+    cur.execute("""
+        SELECT EXISTS (
+            SELECT 1
+            FROM Seats s
+            LEFT JOIN Athletes a ON a.Athlete_ID = s.Athlete_ID
+            WHERE s.Crew_ID = %s
+              AND (s.Athlete_ID IS NULL OR a.Coach = 1)
+        ) AS unrateable
+    """, (crew_id,))
+    row = cur.fetchone()
+    val = row["unrateable"] if isinstance(row, dict) else row[0]
+    return bool(val)
+
+
 def insert_results(cursor, pieces, points, outings, aid):
+    # Use the same crew_id you already write results for
+    crew_id = outings[0]['Crew_ID']
+
+    # Compute the crew's unrateable status once
+    unrated = 1 if is_crew_unrateable(cursor, crew_id) else 0
+
     for piece in pieces:
-        piece_id = piece['Piece_ID']
-        crew_id = outings[0]['Crew_ID']
+        piece_id   = piece['Piece_ID']
         start_time = format_time(points[piece['start']]['time'])
-        end_time = format_time(points[piece['end']]['time'])
+        end_time   = format_time(points[piece['end']]['time'])
         time_taken = format_time(piece['time'])
 
-        gmt_percent = 100 * get_gmt(outings[0]['Boat_Type'], piece['Distance'],piece['time'],cursor)
+        gmt_percent = 100 * get_gmt(outings[0]['Boat_Type'], piece['Distance'], piece['time'], cursor)
 
         sql = """
         INSERT INTO Results (
-            Piece_ID, Crew_ID, Start, Finish, Time, Source, GMT_Percent
+            Piece_ID, Crew_ID, Start, Finish, Time, Source, GMT_Percent, Unrated
         ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON DUPLICATE KEY UPDATE
-            Start = VALUES(Start),
-            Finish = VALUES(Finish),
-            Time = VALUES(Time),
-            Source = VALUES(Source),
-            GMT_Percent = VALUES(GMT_Percent)
+            Start       = VALUES(Start),
+            Finish      = VALUES(Finish),
+            Time        = VALUES(Time),
+            Source      = VALUES(Source),
+            GMT_Percent = VALUES(GMT_Percent),
+            Unrated     = VALUES(Unrated)
         """
 
         cursor.execute(sql, (
@@ -412,9 +437,11 @@ def insert_results(cursor, pieces, points, outings, aid):
             start_time,
             end_time,
             time_taken,
-            aid,
-            gmt_percent
+            aid,            # your Source column
+            gmt_percent,
+            unrated
         ))
+
 
 def process_single_result(cur, aid: int, key: str):
     try:

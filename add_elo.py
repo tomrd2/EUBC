@@ -11,6 +11,7 @@ def add_elo():
         from Results r
         left join Pieces p on r.Piece_ID = p.Piece_ID
         left join Outings o on p.Outing_ID = o.Outing_ID
+        WHERE r.Unrated IS NULL OR r.Unrated = 0
         ORDER BY o.Outing_Date, r.Piece_ID
     """)
     results = cursor.fetchall()

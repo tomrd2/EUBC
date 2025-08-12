@@ -18,6 +18,54 @@ def time_to_seconds(t):
             return 0
     else:
         return 0
+    
+def map_unrateable_for_crews(cursor, crew_ids):
+    """
+    Return {crew_id: 1/0} where 1 = unrateable if ANY seat:
+      - has Athlete_ID IS NULL, OR Athlete_ID = 0, OR
+      - has no matching Athletes row (a.Athlete_ID IS NULL), OR
+      - is a Coach (a.Coach = 1).
+    Crews with no Seats rows at all are treated as unrateable (=1).
+    """
+    if not crew_ids:
+        return {}
+
+    placeholders = ",".join(["%s"] * len(crew_ids))
+    cursor.execute(f"""
+        SELECT
+            s.Crew_ID,
+            MAX(
+                CASE
+                    WHEN s.Athlete_ID IS NULL         -- missing
+                      OR s.Athlete_ID = 0             -- placeholder for non-athlete
+                      OR a.Athlete_ID IS NULL         -- no matching athlete row
+                      OR a.Coach = 1                  -- seat is a coach
+                    THEN 1 ELSE 0
+                END
+            ) AS unrateable
+        FROM Seats s
+        LEFT JOIN Athletes a
+               ON a.Athlete_ID = s.Athlete_ID
+        WHERE s.Crew_ID IN ({placeholders})
+        GROUP BY s.Crew_ID
+    """, tuple(crew_ids))
+
+    rows = cursor.fetchall()
+
+    def _crew_id(r): return r["Crew_ID"] if isinstance(r, dict) else r[0]
+    def _flag(r):    return r["unrateable"] if isinstance(r, dict) else r[1]
+
+    flags = {}
+    for r in rows:
+        cid  = int(_crew_id(r))
+        flag = _flag(r)
+        flags[cid] = 1 if int(flag or 0) == 1 else 0
+
+    # crews with zero seats won't appear → treat as unrateable
+    for cid in crew_ids:
+        flags.setdefault(cid, 1)
+
+    return flags
 
 
 @timing_bp.route('/timing/<int:piece_id>')
@@ -51,11 +99,17 @@ def timing_view(piece_id):
         # Find crews missing a Results row
         missing_crew_ids = set(crew_ids) - existing_result_crew_ids
 
-        # Insert missing rows with default (NULL) values
+        # Compute unrateable flags in bulk
+        unrateable_map = map_unrateable_for_crews(cursor, list(missing_crew_ids))
+
+        # Insert missing rows with Unrated set appropriately
         for crew_id in missing_crew_ids:
+            unrated = unrateable_map.get(crew_id, 1)  # default to 1 if not found
             cursor.execute("""
-                INSERT INTO Results (Piece_ID, Crew_ID) VALUES (%s, %s)
-            """, (piece_id, crew_id))
+                INSERT INTO Results (Piece_ID, Crew_ID, Unrated)
+                VALUES (%s, %s, %s)
+            """, (piece_id, crew_id, unrated))
+
 
         conn.commit()
 
