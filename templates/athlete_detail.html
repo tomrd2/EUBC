@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Athlete Detail</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .form-card {
+      max-width: 600px; margin: 30px auto; background: #f9f9f9;
+      padding: 20px 24px; border-radius: 8px; border: 1px solid #ccc;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 14px;
+    }
+    .form-card table { width: 100%; border-spacing: 0; }
+    .form-card td { padding: 6px 8px; vertical-align: middle; }
+    .form-card input, .form-card select, .form-card textarea {
+      width: 100%; padding: 5px 6px; font-size: 13px; box-sizing: border-box;
+      border-radius: 4px; border: 1px solid #bbb;
+    }
+    .readonly { background: #f0f0f0; color: #555; }
+    .form-card button.btn { margin-top: 10px; background:#0074D9; color:#fff; border:none; padding:6px 14px; font-size:14px; border-radius:4px; cursor:pointer; }
+    .form-card button.btn:hover { background:#005fa3; }
+  </style>
+</head>
+<body>
+  {% include "_header.html" %}
+
+  <h2 style="text-align:center;">Athlete Detail</h2>
+
+  <div class="form-card">
+    <form method="POST" action="{{ url_for('athletes.athlete_detail', athlete_id=athlete.Athlete_ID) }}">
+      <table>
+        <tbody>
+          <tr>
+            <td><label>Athlete ID:</label></td>
+            <td><input type="text" class="readonly" value="{{ athlete.Athlete_ID }}" disabled></td>
+          </tr>
+
+          <tr>
+            <td><label>Full Name:</label></td>
+            <td><input type="text" name="Full_Name" value="{{ athlete.Full_Name }}" required></td>
+          </tr>
+
+          <tr>
+            <td><label>Initials:</label></td>
+            <td><input type="text" name="Initials" value="{{ athlete.Initials }}" maxlength="4" required></td>
+          </tr>
+
+          <!-- Gender (read-only for athletes) -->
+          <tr>
+            <td><label>Gender:</label></td>
+            <td>
+              <select name="M_W" {% if not is_coach %}disabled{% endif %} required>
+                <option value="M" {% if athlete.M_W == 'M' %}selected{% endif %}>M</option>
+                <option value="W" {% if athlete.M_W == 'W' %}selected{% endif %}>W</option>
+              </select>
+            </td>
+          </tr>
+
+          <!-- Side (read-only for athletes) -->
+          <tr>
+            <td><label>Side:</label></td>
+            <td>
+              <select name="Side" {% if not is_coach %}disabled{% endif %}>
+                <option value="" {% if not athlete.Side %}selected{% endif %}></option>
+                <option value="Bow"    {% if athlete.Side == 'Bow' %}selected{% endif %}>Bow</option>
+                <option value="Stroke" {% if athlete.Side == 'Stroke' %}selected{% endif %}>Stroke</option>
+                <option value="Both"   {% if athlete.Side == 'Both' %}selected{% endif %}>Both</option>
+                <option value="Neither"{% if athlete.Side == 'Neither' %}selected{% endif %}>Neither</option>
+                <option value="Cox"    {% if athlete.Side == 'Cox' %}selected{% endif %}>Cox</option>
+              </select>
+            </td>
+          </tr>
+
+          <!-- Sculls (read-only for athletes) -->
+          <tr>
+            <td><label>Sculls:</label></td>
+            <td><input type="checkbox" name="Sculls" value="1" {% if athlete.Sculls %}checked{% endif %} {% if not is_coach %}disabled{% endif %}></td>
+          </tr>
+
+          <!-- Cox (read-only for athletes) -->
+          <tr>
+            <td><label>Cox:</label></td>
+            <td><input type="checkbox" name="Cox" value="1" {% if athlete.Cox %}checked{% endif %} {% if not is_coach %}disabled{% endif %}></td>
+          </tr>
+
+          <!-- Joined (read-only for athletes) -->
+          <tr>
+            <td><label>Joined:</label></td>
+            <td><input type="date" name="Joined" value="{{ athlete.Joined }}" {% if not is_coach %}disabled{% endif %}></td>
+          </tr>
+
+          <tr>
+            <td><label>Email:</label></td>
+            <td><input type="email" name="Email" value="{{ athlete.Email }}"></td>
+          </tr>
+
+          <!-- Coach: hidden for athletes -->
+          {% if is_coach %}
+          <tr>
+            <td><label>Coach:</label></td>
+            <td><input type="checkbox" name="Coach" value="1" {% if athlete.Coach %}checked{% endif %}></td>
+          </tr>
+          {% endif %}
+
+          <tr>
+            <td><label>DropBox:</label></td>
+            <td><textarea name="DropBox" rows="2">{{ athlete.DropBox or '' }}</textarea></td>
+          </tr>
+
+          <tr>
+            <td><label>Max HR:</label></td>
+            <td><input type="number" name="Max_HR" value="{{ athlete.Max_HR }}"></td>
+          </tr>
+
+          <tr>
+            <td><label>Rest HR:</label></td>
+            <td><input type="number" name="Rest_HR" value="{{ athlete.Rest_HR }}"></td>
+          </tr>
+
+          <tr>
+            <td><label>Last Login:</label></td>
+            <td><input type="text" class="readonly" value="{{ athlete.Last_Login or '' }}" disabled></td>
+          </tr>
+
+          <tr>
+            <td><label>New Password:</label></td>
+            <td><input type="text" name="New_Password" placeholder="Leave blank to keep current password"></td>
+          </tr>
+
+          <tr>
+            <td></td>
+            <td style="display:flex; gap:10px;">
+              <button class="btn" type="submit">💾 Save</button>
+                <a class="btn" href="{{ url_for('athletes.athletes') }}">Cancel</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </form>
+  </div>
+</body>
+</html>

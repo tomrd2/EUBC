@@ -4,9 +4,20 @@
   <meta charset="UTF-8">
   <title>Athlete Management</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* optional tiny polish for boolean chips */
+    .chip { display:inline-block; padding:2px 8px; border-radius:12px; font-size:12px; }
+    .chip.yes { background:#e8fff0; color:#065f46; border:1px solid #b8f2cd; }
+    .chip.no  { background:#fff2f2; color:#a40000; border:1px solid #f3c2c2; }
+    td, th { padding:6px 8px; }
+    .actions { white-space:nowrap; display:flex; gap:6px; align-items:center; }
+    .btn { background:#0074D9; color:#fff; padding:6px 10px; border-radius:4px; text-decoration:none; border:0; cursor:pointer; }
+    .btn:hover { background:#005fa3; }
+  </style>
 </head>
 <body>
   {% include "_header.html" %}
+
   <h2>Add New Athlete</h2>
   <form action="/add" method="post">
     <input type="text" name="Full_Name" placeholder="Name" required>
@@ -27,6 +38,7 @@
       Sculls
     </label>
     <label>
+      <!-- If this was intended as COACH, rename to Coach and use value="1" -->
       <input type="checkbox" name="Cox" value="0">
       Cox
     </label>
@@ -44,52 +56,47 @@
       </tr>
     </thead>
     <tbody>
-
       {% for athlete in athletes %}
-      <form action="/edit/{{ athlete.Athlete_ID }}" method="post">
         <tr>
           <td>{{ athlete.Athlete_ID }}</td>
-          <td><input type="text" name="Full_Name" value="{{ athlete.Full_Name }}"></td>
-          <td><input type="text" name="Initials" value="{{ athlete.Initials }}" maxlength="4" size="4"></td>
+          <td>{{ athlete.Full_Name }}</td>
+          <td>{{ athlete.Initials }}</td>
+          <td>{{ athlete.M_W }}</td>
+          <td>{{ athlete.Side or '' }}</td>
           <td>
-            <select name="M_W">
-              <option value="M" {% if athlete.M_W == 'M' %}selected{% endif %}>M</option>
-              <option value="W" {% if athlete.M_W == 'W' %}selected{% endif %}>W</option>
-            </select>
-            <td>
-              <select name="Side">
-                <option value="Bow" {% if athlete.Side == 'Bow' %}selected{% endif %}>Bow</option>
-                <option value="Stroke" {% if athlete.Side == 'Stroke' %}selected{% endif %}>Stroke</option>
-                <option value="Both" {% if athlete.Side == 'Both' %}selected{% endif %}>Both</option>
-                <option value="Neither" {% if athlete.Side == 'Neither' %}selected{% endif %}>Neither</option>
-                <option value="Cox" {% if athlete.Side == 'Cox' %}selected{% endif %}>Cox</option>
-              </select>
-            </td>
-          <td>            
-            <input type="checkbox" name="Sculls" value="1" {% if athlete.Sculls %}checked{% endif %}>
+            {% if athlete.Sculls %}
+              <span class="chip yes">Yes</span>
+            {% else %}
+              <span class="chip no">No</span>
+            {% endif %}
           </td>
-          <td>            
-            <input type="checkbox" name="Coach" value="1" {% if athlete.Coach %}checked{% endif %}>
+          <td>
+            {% if athlete.Coach %}
+              <span class="chip yes">Yes</span>
+            {% else %}
+              <span class="chip no">No</span>
+            {% endif %}
           </td>
-          
-          <td><input type="date" name="Joined" value="{{ athlete.Joined }}"></td>
-          <td><input type="email" name="Email" value="{{ athlete.Email }}"></td>
-          <td style="white-space: nowrap;">
-            <!-- Save Button inside the original form -->
-            <button class="btn" type="submit">Save</button>
-          </form> <!-- Close the outer form here -->
-          
-          <!-- Reset Password Button in a separate form -->
-          <form action="{{ url_for('athletes.reset_password', athlete_id=athlete.Athlete_ID) }}" method="post" style="display:inline;">
-            <button class="btn" type="submit" onclick="return confirm('Reset password for {{ athlete.Full_Name }} to {{ athlete.Initials.lower() }}_eubc?')">Reset Password</button>
-          </form>
-          <a class="btn" href="{{ url_for('dashboard.athlete_dashboard', athlete_id=athlete.Athlete_ID) }}">Dashboard</a>
+          <td>{{ athlete.Joined or '' }}</td>
+          <td>{{ athlete.Email }}</td>
+          <td class="actions">
+            <!-- Edit goes to the new detail page -->
+            <a class="btn" href="{{ url_for('athletes.athlete_detail', athlete_id=athlete.Athlete_ID) }}">Edit</a>
 
-          </td>
+            <!-- Reset Password stays as its own POST form -->
+            <form action="{{ url_for('athletes.reset_password', athlete_id=athlete.Athlete_ID) }}" method="post" style="display:inline;">
+              <button class="btn" type="submit"
+                onclick="return confirm('Reset password for {{ athlete.Full_Name }} to {{ athlete.Initials.lower() }}_eubc?')">
+                Reset Password
+              </button>
+            </form>
 
+            <!-- Dashboard link unchanged -->
+            <a class="btn" href="{{ url_for('dashboard.athlete_dashboard', athlete_id=athlete.Athlete_ID) }}">Dashboard</a>
+          </td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>
 </body>
 </html>
-

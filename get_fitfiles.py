@@ -105,7 +105,6 @@ def process_athlete(aid: str, link: str) -> None:
             else:
                 final_name = entry.name       # fit or tcx
 
-
             if already_in_s3(aid, final_name, s3_keys):
                 print(f"   – skipping {final_name} (already in S3)")
                 continue

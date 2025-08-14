@@ -9,7 +9,11 @@ athletes_bp = Blueprint('athletes', __name__)
 
 # Athletes Page
 @athletes_bp.route('/athletes')
+@login_required
 def athletes():
+    if not current_user.coach:
+        return redirect(url_for('app_menu'))
+
     conn = get_db_connection()
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM Athletes ORDER By Coach, Full_Name")
@@ -18,6 +22,7 @@ def athletes():
     return render_template('athletes.html', athletes=data)
 
 @athletes_bp.route('/add', methods=['POST'])
+@login_required
 def add_athlete():
     data = request.form
     sculls_value = 1 if 'Sculls' in data else 0
@@ -37,6 +42,7 @@ def add_athlete():
     return redirect(url_for('athletes.athletes'))
 
 @athletes_bp.route('/edit/<int:athlete_id>', methods=['POST'])
+@login_required
 def edit_athlete(athlete_id):
     data = request.form
     sculls_value = 1 if 'Sculls' in data else 0
@@ -65,6 +71,7 @@ def edit_athlete(athlete_id):
 
 
 @athletes_bp.route('/reset_password/<int:athlete_id>', methods=['POST'])
+@login_required
 def reset_password(athlete_id):
     conn = get_db_connection()
     with conn.cursor() as cursor:
@@ -92,3 +99,80 @@ def reset_password(athlete_id):
 
     flash(f"Password for athlete {athlete_id} reset to default.", "success")
     return redirect(url_for('athletes.athletes')) 
+
+def _none_if_empty(v):
+    v = v.strip() if isinstance(v, str) else v
+    return None if v in ("", None) else v
+
+@athletes_bp.route('/athlete/<int:athlete_id>', methods=['GET', 'POST'], endpoint='athlete_detail')
+@login_required
+def athlete_detail(athlete_id):
+    conn = get_db_connection()
+    try:
+        is_coach = bool(current_user.coach)  # ✅ Use the built-in property
+
+        with conn.cursor() as cur:
+            if request.method == 'POST':
+                # Always editable for both
+                full_name = request.form.get('Full_Name', '').strip()
+                initials  = request.form.get('Initials', '').strip()
+                email     = _none_if_empty(request.form.get('Email', ''))
+                dropbox   = _none_if_empty(request.form.get('DropBox', ''))
+                max_hr    = _none_if_empty(request.form.get('Max_HR', ''))
+                rest_hr   = _none_if_empty(request.form.get('Rest_HR', ''))
+                if isinstance(max_hr, str) and max_hr.isdigit(): max_hr = int(max_hr)
+                if isinstance(rest_hr, str) and rest_hr.isdigit(): rest_hr = int(rest_hr)
+
+                cols = [
+                    ("Full_Name", full_name),
+                    ("Initials",  initials),
+                    ("Email",     email),
+                    ("DropBox",   dropbox),
+                    ("Max_HR",    max_hr),
+                    ("Rest_HR",   rest_hr),
+                ]
+
+                if is_coach:
+                    # Coaches can also edit these
+                    m_w    = request.form.get('M_W', '').strip()
+                    side   = _none_if_empty(request.form.get('Side', ''))
+                    joined = _none_if_empty(request.form.get('Joined', ''))
+                    sculls = 1 if 'Sculls' in request.form else 0
+                    cox    = 1 if 'Cox'    in request.form else 0
+                    coach  = 1 if 'Coach'  in request.form else 0
+
+                    cols += [
+                        ("M_W",    m_w),
+                        ("Side",   side),
+                        ("Joined", joined),
+                        ("Sculls", sculls),
+                        ("Cox",    cox),
+                        ("Coach",  coach),
+                    ]
+
+                set_clause = ", ".join([f"{c}=%s" for c,_ in cols])
+                params = [v for _,v in cols] + [athlete_id]
+                cur.execute(f"UPDATE Athletes SET {set_clause} WHERE Athlete_ID=%s", params)
+
+                # Password change
+                new_password = request.form.get('New_Password', '').strip()
+                if new_password:
+                    cur.execute(
+                        "UPDATE Athletes SET Password_Hash=%s WHERE Athlete_ID=%s",
+                        (generate_password_hash(new_password), athlete_id)
+                    )
+
+                conn.commit()
+                flash("Athlete details updated.", "success")
+                return redirect(url_for('athletes.athletes'))
+
+            # GET
+            cur.execute("SELECT * FROM Athletes WHERE Athlete_ID = %s", (athlete_id,))
+            athlete = cur.fetchone()
+            if not athlete:
+                return "Athlete not found", 404
+
+        return render_template('athlete_detail.html', athlete=athlete, is_coach=is_coach)
+
+    finally:
+        conn.close()
