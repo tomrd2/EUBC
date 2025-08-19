@@ -6,7 +6,7 @@ from contextvars import ContextVar
 from flask import g, has_request_context, current_app
 
 # For background jobs (no request), we store the active tenant in a contextvar.
-_active_tenant: ContextVar | None = ContextVar("_active_tenant", default=None)  # type: ignore[assignment]
+_active_tenant = ContextVar("_active_tenant", default=None)
 
 def _get_active_tenant():
     """
