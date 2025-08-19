@@ -13,7 +13,7 @@ sabc:
   display_name: "St Andrew Boat Club"
   db:
     host: eubcdb-2.cp6ymm2sk6ub.eu-west-2.rds.amazonaws.com
-    user: sabc_user
+    user: sabc_app
     password: 36iiwqPtREsEJen
     database: sabcdb
   static_root: "./static/sabc"
