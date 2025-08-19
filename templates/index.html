@@ -14,7 +14,7 @@
 
     body {
       font-family: Arial, sans-serif;
-      background-image: url('{{ url_for("static", filename="background.jpg") }}');
+      background-image: url('{{ url_for("club_static", filename="background.jpg") }}');
       background-size: cover;
       background-attachment: fixed;
       background-position: center;
@@ -57,7 +57,7 @@
 </head>
 <body>
 
-  <a href="{{ url_for('app_menu') }}" class="login-link">Login</a>
+  <a href="{{ url_for('core.app_menu') }}" class="login-link">Login</a>
 
 <div class="content">
   <h1>CrewOptic</h1>
@@ -100,7 +100,7 @@
       Machine learning and AI models are used to bring together separate data, such as land-training, OTW results and onboard telemetry. This can provide coaches with valuable information about the significance of individual metrics as well as the performance of the athletes themselves.
     </p>
   </div>
-    <a href="{{ url_for('app_privacy') }}" class="login-link">Privacy Statement</a>
+    <a href="{{ url_for('core.app_privacy') }}" class="login-link">Privacy Statement</a>
 </div>
 
 </body>

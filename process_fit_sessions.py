@@ -25,7 +25,7 @@ from typing import Iterator, Tuple
 
 import boto3
 from fitparse import FitFile
-from db import get_db_connection
+from db import get_db_connection,get_param
 
 # ── configuration ────────────────────────────────────────────────────────
 S3_BUCKET = "eubctrackingdata"
@@ -103,53 +103,114 @@ def get_athlete_hr(cur, aid: int) -> tuple[int | None, int | None]:
         # Fall back to positional access
         return r[0], r[1]
 
-
 def sport_factor(activity: str) -> float:
-    return {
-        "Water": 1.00, "Erg": 1.35, "Static Bike": 0.95,
-        "Bike": 0.80, "Run": 1.40, "Swim": 1.20, "Brisk Walk": 0.50,
-    }.get(activity, 0.60)
+    # Normalize spacing & case to match Params table keys
+    activity_key = activity.strip().title()
+
+    try:
+        return float(get_param(activity_key).value)
+    except Exception:
+        # Fallback to "Other" if no match
+        return float(get_param("Other").value)
 
 def calculate_t2(
     hr_data: list[tuple[datetime, int]],
     rest_hr: int | None,
     max_hr: int | None,
     activity: str
-) -> int:
+) -> tuple[int, list[float], float, list[float]]:
     """
-    Compute T2Minutes from a list of (timestamp, HR) tuples.
+    Compute T2Minutes and also return:
+      - zones_sec: list of 6 elements with seconds in each zone
+      - activity_factor
+      - weights list
     """
     if not (rest_hr and max_hr and max_hr > rest_hr):
-        return 0
+        return 0, [0]*6, sport_factor(activity), [
+            float(get_param("HR_Z0_W").value),
+            float(get_param("HR_Z1_W").value),
+            float(get_param("HR_Z2_W").value),
+            float(get_param("HR_Z3_W").value),
+            float(get_param("HR_Z4_W").value),
+            float(get_param("HR_Z5_W").value),
+        ]
 
-    zones = [0] * 6
+    zones = [0.0] * 6
     last_ts = None
+
+    # thresholds
+    hr_z0 = float(get_param("HR_Z0").value)
+    hr_z1 = float(get_param("HR_Z1").value)
+    hr_z2 = float(get_param("HR_Z2").value)
+    hr_z3 = float(get_param("HR_Z3").value)
+    hr_z4 = float(get_param("HR_Z4").value)
+    hr_z5 = float(get_param("HR_Z5").value)
 
     for ts, hr in hr_data:
         if last_ts:
             dsec = (ts - last_ts).total_seconds()
             hr_pct = (hr - rest_hr) / (max_hr - rest_hr)
 
-            if hr_pct >= 0.60:
+            if hr_pct >= hr_z0:
                 idx = (
-                    0 if hr_pct < .75 else
-                    1 if hr_pct < .83 else
-                    2 if hr_pct < .88 else
-                    3 if hr_pct < .93 else
-                    4 if hr_pct < .99 else 5
+                    0 if hr_pct < hr_z1 else
+                    1 if hr_pct < hr_z2 else
+                    2 if hr_pct < hr_z3 else
+                    3 if hr_pct < hr_z4 else
+                    4 if hr_pct < hr_z5 else 5
                 )
                 zones[idx] += dsec
-
         last_ts = ts
 
-    weights = [0.9, 1.0, 1.35, 2.1, 5.0, 9.0]
+    weights = [
+        float(get_param("HR_Z0_W").value),
+        float(get_param("HR_Z1_W").value),
+        float(get_param("HR_Z2_W").value),
+        float(get_param("HR_Z3_W").value),
+        float(get_param("HR_Z4_W").value),
+        float(get_param("HR_Z5_W").value),
+    ]
+    activity_factor = sport_factor(activity)
+
     t2_raw = sum(z * w for z, w in zip(zones, weights)) / 60
-    t2 = int(round(t2_raw * sport_factor(activity)))
+    t2 = int(round(t2_raw * activity_factor))
 
-    logger.debug("Zones: %s", zones)
-    logger.debug("T2 raw: %.2f → final T2: %s", t2_raw, t2)
+    logger.debug("Zones(sec): %s", zones)
+    logger.debug("T2 raw: %.2f × act=%.2f → T2=%s", t2_raw, activity_factor, t2)
 
-    return t2
+    return t2, zones, activity_factor, weights
+
+def classify_activity(sport: str | None, sub: str | None) -> str:
+    s  = (sport or "").strip().lower()
+    ss = (sub or "").strip().lower()
+
+    # Sub-sport overrides (handles fitness_equipment + indoor_rowing, etc.)
+    sub_map = {
+        "indoor_rowing":  "Erg",
+        "indoor-rowing":  "Erg",
+        "rower":          "Erg",
+        "erg":            "Erg",
+        "ergometer":      "Erg",
+
+        "indoor_cycling": "Static Bike",
+        "indoor-cycling": "Static Bike",
+        "spin":           "Static Bike",
+        "spinning":       "Static Bike",
+        "stationary_cycling": "Static Bike",
+        "stationary-bike":    "Static Bike",
+    }
+    if ss in sub_map:
+        return sub_map[ss]
+
+    # Fall back to sport-only mapping
+    sport_map = {
+        "rowing":   "Water",
+        "cycling":  "Bike",
+        "walking":  "Brisk Walk",
+        "running":  "Run",
+        "swimming": "Swim",
+    }
+    return sport_map.get(s, "Other")
 
 
 # ── FIT parsing ───────────────────────────────────────────────────────────
@@ -171,11 +232,8 @@ def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
             dt = msg.get_value("timestamp"); break
     dt = dt or datetime.now(timezone.utc)
 
-    mapping = {("cycling","indoor_cycling"):"Static Bike",("cycling",None):"Bike",
-               ("rowing","indoor_rowing"):"Erg",("rowing",None):"Water",
-               ("walking",None):"Brisk Walk",("running",None):"Run",
-               ("swimming",None):"Swim"}
-    activity = mapping.get((sport, sub)) or mapping.get((sport, None)) or "Other"
+    mapping = None  # no longer used
+    activity = classify_activity(sport, sub)
     comment  = f"Sport: {sport} | Sub: {sub or 'n/a'}"
 
     # 🆕 Standardised HR data
@@ -186,9 +244,8 @@ def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
         if hr is not None and ts is not None:
             hr_data.append((ts, hr))
 
-    t2 = calculate_t2(hr_data, rest_hr, max_hr, activity)
-
-    return dt, activity, dur_s, dist_m, comment, t2
+    t2, zones, act_factor, weights = calculate_t2(hr_data, rest_hr, max_hr, activity)
+    return dt, activity, dur_s, dist_m, comment, t2, zones, act_factor, weights
 
 
 def parse_tcx_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
@@ -226,19 +283,44 @@ def parse_tcx_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
     if hr_data:
         dur_s = int((hr_data[-1][0] - dt).total_seconds())
 
-    t2 = calculate_t2(hr_data, rest_hr, max_hr, activity)
+    t2, zones, act_factor, weights = calculate_t2(hr_data, rest, max_hr, activity)
+    return dt, activity, dur_s, dist_m, comment, t2, zones, act_factor, weights
 
-    return dt, activity, dur_s, dist_m, comment, t2
+def _to_time(seconds: int):
+    return (datetime.min + timedelta(seconds=int(seconds))).time()
+
+def insert_zones(cur, session_id: int, zones_sec: list[float],
+                 activity_factor: float, weights: list[float]):
+    """
+    Insert/Upsert per-zone details for this session.
+    `zones_sec` is seconds in zone (len == 6).
+    """
+    for zone_idx, sec in enumerate(zones_sec):
+        t2_minutes = int(round((sec * weights[zone_idx]) / 60.0 * activity_factor))
+        cur.execute(
+            "INSERT INTO Zones (Session_ID, Zone, Time_In_Zone, Activity_Factor, Zone_Factor, `T2 Minutes`)"
+            " VALUES (%s, %s, %s, %s, %s, %s)"
+            " ON DUPLICATE KEY UPDATE "
+            "   Time_In_Zone=VALUES(Time_In_Zone),"
+            "   Activity_Factor=VALUES(Activity_Factor),"
+            "   Zone_Factor=VALUES(Zone_Factor),"
+            "   `T2 Minutes`=VALUES(`T2 Minutes`)",
+            (
+                session_id,
+                zone_idx,
+                _to_time(int(sec)),
+                float(activity_factor),
+                float(weights[zone_idx]),
+                t2_minutes,
+            )
+        )
+
 
 
 # ── UPSERT (merged) ───────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 # helper: insert one row
-def insert_session(cur, aid, dt, activity,
-                   dur_s, dist_m, comment, t2, source):
-    """
-    Write a single session row.  `source` is already normalised before call.
-    """
+def insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source) -> int:
     cur.execute(
         """INSERT INTO Sessions (
                Athlete_ID, Session_Date, Activity, Duration,
@@ -252,27 +334,21 @@ def insert_session(cur, aid, dt, activity,
             dist_m,
             comment,
             t2,
-            source,               # store the normalised filename
+            source,
         ),
     )
-    logger.info("    + session saved (src=%s)", source)
+    session_id = cur.lastrowid  # <-- capture the new PK
+    logger.info("    + session saved (src=%s, id=%s)", source, session_id)
+    return session_id
 # ---------------------------------------------------------------------------
 
 
 def upsert_session(cur, aid: int, dt: datetime, activity: str,
-                   dur_s: int, dist_m: int, comment: str, t2: int, source_raw: str):
-    """
-    Handle duplicates exactly per spec:
-
-    1. No existing row → insert.
-    2. Row with Source IS NULL → delete & insert.
-    3. Rows exist but none with the SAME filename → insert alongside.
-    4. Row with same filename → skip.
-    """
-    # normalise the incoming filename (lower-case, trim, base-name only)
+                   dur_s: int, dist_m: int, comment: str,
+                   t2: int, zones: list[float], act_factor: float, weights: list[float],
+                   source_raw: str):
     source = source_raw.rsplit("/", 1)[-1].strip().lower()
 
-    # fetch existing rows for (Athlete, Date, Activity)
     cur.execute(
         """SELECT Session_ID, Source
              FROM Sessions
@@ -283,32 +359,33 @@ def upsert_session(cur, aid: int, dt: datetime, activity: str,
     )
     rows = cur.fetchall()
 
-    # --- scenario 1: nothing there yet ---
-    if not rows:
-        insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
-        return
-
-    # helper to read tuple or dict rows
     def col(row, key, idx):
         return row[key] if isinstance(row, dict) else row[idx]
 
-    # --- scenario 2: replace NULL-source row ---
+    # 1) nothing there yet → insert
+    if not rows:
+        sid = insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
+        insert_zones(cur, sid, zones, act_factor, weights)
+        return
+
+    # 2) replace NULL-source row
     for r in rows:
         if col(r, "Source", 1) is None:
             cur.execute("DELETE FROM Sessions WHERE Session_ID = %s",
                         (col(r, "Session_ID", 0),))
-            insert_session(cur, aid, dt, activity, dur_s, dist_m,
-                           comment, t2, source)
+            sid = insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
+            insert_zones(cur, sid, zones, act_factor, weights)
             return
 
-    # --- scenario 4: duplicate filename?  then skip ---
-    if any( (col(r, "Source", 1) or "").rsplit("/", 1)[-1].strip().lower() == source
-            for r in rows ):
+    # 4) duplicate filename? skip
+    if any(((col(r, "Source", 1) or "").rsplit("/", 1)[-1].strip().lower() == source) for r in rows):
         logger.debug("    · duplicate (same source) – skipped")
         return
 
-    # --- scenario 3: same A/D/A but new filename → insert alongside ---
-    insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
+    # 3) same A/D/A but new filename → insert alongside
+    sid = insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
+    insert_zones(cur, sid, zones, act_factor, weights)
+
 # ---------------------------------------------------------------------------
 
 def process_single_file(cur, aid, key):
@@ -323,9 +400,9 @@ def process_single_file(cur, aid, key):
 
     try:
         if fname.endswith(".fit"):
-            dt, act, dur_s, dist_m, comment, t2 = parse_fit_bytes(buf, rest, max_hr)
+            dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights = parse_fit_bytes(buf, rest, max_hr)
         elif fname.endswith(".tcx"):
-            dt, act, dur_s, dist_m, comment, t2 = parse_tcx_bytes(buf, rest, max_hr)
+            dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights = parse_tcx_bytes(buf, rest, max_hr)
         else:
             logger.warning("    ! Unsupported file type: %s", fname)
             return
@@ -333,7 +410,7 @@ def process_single_file(cur, aid, key):
         logger.error("    ! File parse failed (%s): %s", fname, e)
         return
 
-    upsert_session(cur, aid, dt, act, dur_s, dist_m, comment, t2, fname)
+    upsert_session(cur, aid, dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights, fname)
 
 
 # ── main loop ─────────────────────────────────────────────────────────────

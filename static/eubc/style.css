@@ -1,0 +1,248 @@
+body {
+    background-color: #e6f2ff;
+    font-family: Arial, sans-serif;
+    color: #000;
+    padding: 20px;
+  }
+  
+  header {
+    display: flex;
+    align-items: center;
+    background-color: #001f3f;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  
+  header img {
+    height: 50px;
+    margin-right: 20px;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: white;
+  }
+  
+  th, td {
+    padding: 10px;
+    border: 1px solid #ccc;
+  }
+  
+  th {
+    background-color: #0074D9;
+    color: white;
+  }
+  
+  form {
+    margin-top: 0px;
+    background: white;
+    padding: 0px;
+    border-radius: 0px;
+  }
+  
+  input, select {
+    padding: 5px;
+    margin: 0px;
+  }
+  
+  .btn {
+    background-color: #0074D9;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .btn:hover {
+    background-color: #005fa3;
+  }
+  
+  .menu {
+    margin-top: 40px;
+  }
+  
+  .menu a {
+    display: block;
+    margin: 15px 0;
+    padding: 12px 20px;
+    background-color: #0074D9;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    width: 200px;
+  }
+  
+  .menu a:hover {
+    background-color: #005fa3;
+  }
+
+  .column {
+    flex: 0 0 160px; /* Or use the same width as .crew-card */
+    max-width: 170px;
+    background: #f2f9ff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 6px;
+  }
+
+  .crew-columns {
+    display: flex;
+    gap: 20px;
+    margin: 30px 0;
+    flex-wrap: wrap;
+  }
+  
+  .crew-card {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 10px;
+    background-color: #f9f9f9;
+    min-width: 170px;
+  }
+  
+  .crew-card.new-crew {
+    background-color: #e6f2ff;
+  }
+  
+  .crew-line {
+    margin-bottom: 8px;
+  }
+
+  .crew-grid {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-top: 30px;
+  }
+  
+  .crew-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 80px;
+    padding-top: 8px;
+  }
+  
+  .crew-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #f9f9f9;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    min-width: 170px;
+  }
+  
+  .crew-column.crew-add {
+    background: #e6f7ff;
+  }
+  
+  .crew-row {
+    display: flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 8px;
+    font-size: 14px;
+    line-height: 1.2;
+    box-sizing: border-box;
+  }
+  
+  .crew-row input,
+  .crew-row button {
+    width: 100%;
+    height: 24px;
+    font-size: 13px;
+    padding: 2px 6px;
+    box-sizing: border-box;
+  }
+  
+  .crew-column {
+    gap: 8px;                 /* Reduced gap between rows inside each box */
+    padding: 6px 8px;         /* Less padding overall */
+  }
+  
+  .crew-labels {
+    gap: 8px;                 /* Match crew box vertical spacing */
+    padding-top: 6px;
+  }
+
+  .crew-column.crew-add form {
+    margin: 0;
+    padding: 0;
+  }
+
+  .seat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .seats {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  
+  .seat-slot {
+    width: 100%;
+    height: 32px;
+    border: 2px dashed #0074D9;
+    border-radius: 4px;
+    text-align: center;
+    line-height: 30px;
+    background-color: #f0f8ff;
+    font-size: 14px;
+    color: #333;
+  }
+  
+  .seat-slot.filled {
+    border-style: solid;
+    background-color: #d6f0ff;
+    font-weight: bold;
+  }
+  
+  .athlete-name {
+    cursor: grab;
+    transition: opacity 0.2s;
+  }
+  
+  .athlete-name[style*="pointer-events: none"] {
+    text-decoration: line-through;
+  }
+
+  td.center {
+    text-align: center;
+}
+
+table td {
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+table input,
+table select,
+table textarea {
+  margin: 0;
+  padding: 4px;
+  font-size: 14px;
+}
+
+table textarea {
+  resize: vertical;
+  height: 60px;
+}
+
+a.btn {
+  text-decoration: none;
+}
+
+  
+  

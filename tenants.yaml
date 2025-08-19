@@ -1,0 +1,19 @@
+# tenants.yaml
+
+eubc:
+  display_name: "Edinburgh Uni Boat Club"
+  db:
+    host: eubcdb-2.cp6ymm2sk6ub.eu-west-2.rds.amazonaws.com
+    user: admin
+    password: Flockhart
+    database: eubcdb
+  static_root: "./static/eubc"
+
+sabc:
+  display_name: "St Andrew Boat Club"
+  db:
+    host: eubcdb-2.cp6ymm2sk6ub.eu-west-2.rds.amazonaws.com
+    user: sabc_user
+    password: REPLACE_ME
+    database: sabcdb
+  static_root: "./static/sabc"

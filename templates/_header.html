@@ -1,8 +1,8 @@
 <header style="display: flex; justify-content: space-between; align-items: center; background-color: #001f3f; color: white; padding: 5px 20px; border-radius: 8px;">
   <!-- Left side: logo and title -->
   <div style="display: flex; align-items: center;">
-    <a href="{{ url_for('app_menu') }}">
-      <img src="{{ url_for('static', filename='EUBC_Logo.png') }}" alt="Logo" style="height: 50px; margin-right: 10px;">
+    <a href="{{ url_for('core.app_menu') }}">
+      <img src="{{ url_for('club_static', filename='Logo.png') }}" alt="Logo" style="height: 50px; margin-right: 10px;">
     </a>
     <h1 style="margin: 0;">{{ page_title or 'CrewOptic' }}</h1>
   </div>
@@ -11,8 +11,8 @@
   {% if current_user.is_authenticated %}
   <div style="text-align: right;">
     Logged in as <strong>{{ current_user.name }}</strong>
-    | <a href="{{ url_for('logout') }}" style="color: white; text-decoration: underline;">Logout</a>
-      <a href="{{ url_for('change_password') }}" style="color: white; text-decoration: underline;">Change Password</a> 
+    | <a href="{{ url_for('core.logout') }}" style="color: white; text-decoration: underline;">Logout</a>
+      <a href="{{ url_for('core.change_password') }}" style="color: white; text-decoration: underline;">Change Password</a> 
   </div>
   {% endif %}
 </header>
