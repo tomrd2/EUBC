@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>Timing Results</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('club_static', filename='style.css') }}">
 </head>
 
 <body>
@@ -75,7 +75,7 @@
 </table>
 
 <!-- Load socket.io -->
-<script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
+<script src="{{ url_for('club_static', filename='socket.io.min.js') }}"></script>
 
 <!-- Now load your main script AFTER the page is fully loaded -->
 <script>
