@@ -4,8 +4,8 @@ eubc:
   display_name: "Edinburgh Uni Boat Club"
   db:
     host: eubcdb-2.cp6ymm2sk6ub.eu-west-2.rds.amazonaws.com
-    user: admin
-    password: Flockhart
+    user: eubc_app
+    password: bX3bhbU6knI3Tin
     database: eubcdb
   static_root: "./static/eubc"
 
@@ -14,6 +14,6 @@ sabc:
   db:
     host: eubcdb-2.cp6ymm2sk6ub.eu-west-2.rds.amazonaws.com
     user: sabc_user
-    password: REPLACE_ME
+    password: 36iiwqPtREsEJen
     database: sabcdb
   static_root: "./static/sabc"
