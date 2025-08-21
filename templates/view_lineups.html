@@ -31,6 +31,7 @@
 
 <body>
   {% include "_header.html" %}
+  <a href="{{ url_for('outings.outings') }}" class="btn" style="margin-right: 15px;">← Back</a>
 
   <h2 style="margin-top: 20px; color: #001f3f;">
     Line-Up for {{ outing.Outing_Date }} – <em>{{ outing.Outing_Name }}</em>

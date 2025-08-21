@@ -7,7 +7,7 @@
 <body>
   {% include "_header.html" %}
     {% if current_user.coach: %}
-        <form action="/add_outing" method="post">
+        <form action="{{ url_for('outings.add_outing') }}" method="post">
             <input type="date" name="Outing_Date" placeholder="Outing Date" required>
             <input type="text" name="Outing_Name" placeholder="Outing Name">
             <input type="text" name="Description" placeholder="Description">

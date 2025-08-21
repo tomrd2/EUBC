@@ -7,7 +7,7 @@
 <body>
   {% include "_header.html" %}
     {% if current_user.coach: %}
-        <form action="/add_piece" method="post">
+        <form action="{{ url_for('pieces.add_piece') }}" method="post">
 
             <a href="{{ url_for('outings.outings') }}" class="btn" style="margin-right: 15px;">← Back</a>
 

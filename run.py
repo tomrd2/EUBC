@@ -82,20 +82,32 @@ login_manager.init_app(app)
 login_manager.login_view = 'core.login'  # endpoint inside our core blueprint
 
 class User(UserMixin):
-    def __init__(self, athlete_data):
+    def __init__(self, athlete_data, tenant_key):
         self.id = athlete_data['Athlete_ID']
         self.name = athlete_data['Full_Name']
         self.email = athlete_data['Email']
         self.coach = athlete_data['Coach']
+        self.tenant_key = tenant_key
+
+    def get_id(self):
+        # store "tenant:user_id" in the session
+        return f"{self.tenant_key}:{self.id}"
 
 @login_manager.user_loader
-def load_user(user_id):
+def load_user(composite_id: str):
+    try:
+        tenant_key, user_id = composite_id.split(':', 1)
+    except ValueError:
+        return None
+    if tenant_key != getattr(g, 'tenant_key', None):
+        return None
+
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
             cursor.execute("SELECT * FROM Athletes WHERE Athlete_ID = %s", (user_id,))
-            user = cursor.fetchone()
-        return User(user) if user else None
+            row = cursor.fetchone()
+            return User(row, tenant_key) if row else None
     finally:
         conn.close()
 
@@ -121,7 +133,8 @@ def login():
                 cursor.execute("SELECT * FROM Athletes WHERE Email = %s", (email,))
                 user = cursor.fetchone()
             if user and check_password_hash(user['Password_Hash'], password):
-                login_user(User(user))
+                u = User(user, g.tenant_key)
+                login_user(u)
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "UPDATE Athletes SET Last_Login = NOW() WHERE Athlete_ID = %s",
