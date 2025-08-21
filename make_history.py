@@ -1,71 +1,90 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
 from datetime import date, timedelta
 from collections import defaultdict
-from db import get_db_connection
+import argparse
+import logging
+
+# ✅ CrewOptic app + tenant context
+from run import app
+from db import get_db_connection, tenant_context
 from add_elo import add_elo
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s")
+log = logging.getLogger(__name__)
+
 def make_history(elo_history=None):
+    """
+    Rebuild the History table for the CURRENT TENANT (tenant bound via db.get_db_connection()).
+    """
+    # If caller didn’t pass elo_history, compute it now for this tenant
+    if elo_history is None:
+        log.info("No elo_history provided; computing via add_elo()…")
+        elo_history = add_elo()  # tenant-aware if run under tenant_context
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # 1) Start fresh
     cursor.execute("DELETE FROM History")
 
-    # Step 1: Get all relevant athletes
+    # 2) Eligible athletes
     cursor.execute("""
-        SELECT Athlete_ID FROM Athletes
-        WHERE Side != 'Cox' AND (Coach IS NULL OR Coach != 1)
+        SELECT Athlete_ID
+          FROM Athletes
+         WHERE Side != 'Cox' AND (Coach IS NULL OR Coach != 1)
     """)
     athletes = [row['Athlete_ID'] for row in cursor.fetchall()]
 
-    # Step 2: Generate date range
+    # 3) Date range
     end_date = date.today()
     cursor.execute("SELECT MIN(Session_Date) AS Earliest FROM Sessions")
     start_row = cursor.fetchone()
-    start_date = start_row['Earliest'] or end_date  # fallback in case table is empty
-    all_dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    start_date = (start_row['Earliest'] or end_date)
+    all_dates = [start_date + timedelta(days=i)
+                 for i in range((end_date - start_date).days + 1)]
 
-    # Step 3: Get T2Minutes totals from Sessions
+    # 4) T2 per athlete/day
     cursor.execute("""
         SELECT Athlete_ID, Session_Date, SUM(T2Minutes) AS Total_T2
-        FROM Sessions
-        GROUP BY Athlete_ID, Session_Date
+          FROM Sessions
+         GROUP BY Athlete_ID, Session_Date
     """)
     raw_sessions = cursor.fetchall()
 
-    # Step 4: Build lookup of (athlete_id, date) → T2Minutes
     t2_lookup = defaultdict(int)
     for row in raw_sessions:
         t2_lookup[(row['Athlete_ID'], row['Session_Date'])] = row['Total_T2'] or 0
 
-    # Step 5: Precompute weights
-    weights = [1.0, 0.8, 0.6, 0.4, 0.2]
-
-    # Step 6: Build complete history rows with fatigue
+    # 5/6) Build History rows (with OTW_ELO)
     history_records = []
-
     for athlete_id in athletes:
-        for i, current_date in enumerate(all_dates):
-            # --- Fatigue Calculation (already present) ---
+        per_athlete_elo = elo_history.get(athlete_id, {}) if elo_history else {}
+        for current_date in all_dates:
+            # Fatigue: short (5-day) weighted sum
             fatigue = 0.0
             for offset, weight in enumerate([1.0, 0.8, 0.6, 0.4, 0.2]):
                 day = current_date - timedelta(days=offset)
                 if day >= start_date:
-                    fatigue += weight * float(t2_lookup.get((athlete_id, day), 0))
+                    fatigue += weight * float(t2_lookup.get((athlete_id, day), 0.0))
 
-            # --- Fitness Calculation (new) ---
+            # Fitness: long (100-day) decayed sum
             fitness = 0.0
             for d in range(100):
                 day = current_date - timedelta(days=d)
                 if day >= start_date:
-                    decay = (100 - d) / 100  # e.g., 1.0, 0.99, ..., 0.01
-                    fitness += decay * float(t2_lookup.get((athlete_id, day), 0))
+                    decay = (100 - d) / 100.0
+                    fitness += decay * float(t2_lookup.get((athlete_id, day), 0.0))
 
-            t2 = t2_lookup.get((athlete_id, current_date), 0)
-            elo = round(elo_history.get(athlete_id, {}).get(current_date, 1000), 2)
+            t2  = int(t2_lookup.get((athlete_id, current_date), 0))
+            elo = round(per_athlete_elo.get(current_date, 1000.0), 2)
+
             history_records.append((
                 athlete_id,
                 current_date,
                 t2,
-                round(fatigue/3, 2),
+                round(fatigue/3,    2),
                 round(fitness/50.5, 2),
                 elo
             ))
@@ -77,8 +96,25 @@ def make_history(elo_history=None):
 
     conn.commit()
     conn.close()
-    print("✅ History table refreshed.")
+    log.info("✅ History table refreshed (%d rows).", len(history_records))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Rebuild History for a tenant.")
+    parser.add_argument("--tenant", required=True, help="Tenant key, e.g. 'eubc' or 'sabc'")
+    args = parser.parse_args()
+
+    # Bind tenant so add_elo() and get_db_connection() use the right schema
+    with app.app_context():
+        tenants = app.config.get("TENANTS", {})
+        if args.tenant not in tenants:
+            raise SystemExit(f"Unknown tenant '{args.tenant}'. Available: {list(tenants.keys())}")
+
+        with tenant_context(app, args.tenant):
+            # Compute ELO first, then write History with those values
+            elo_history = add_elo()
+            make_history(elo_history)
+
 
 if __name__ == "__main__":
-    elo_history = add_elo()
-    make_history(elo_history)   
+    main()

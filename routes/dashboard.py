@@ -2,7 +2,6 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required, current_user
 from db import get_db_connection
 from datetime import datetime, date, timedelta, time
-from make_history import make_history
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -17,7 +16,6 @@ def format_day_suffix(n):
 @dashboard_bp.route('/athlete_dash')
 @login_required
 def athlete_dashboard():
-    #make_history()
     conn = get_db_connection()
     cursor = conn.cursor()
 

@@ -1,84 +1,77 @@
 #!/usr/bin/env python3
+
 """
-process_fit_sessions.py  (merged insert/upsert)
-==============================================
-• Downloads all *.fit files from S3 (eubctrackingdata/fitfiles/<Athlete_ID>/).
-• Parses them with fitparse, derives Activity, Distance, Duration and HR‑based
-  T2Minutes.
-• Inserts into **Sessions** while handling duplicates exactly as requested:
+Tenant-aware FIT/TCX session importer.
 
-  ─ If no row for (Athlete, Date, Activity) → insert.
-  ─ If an existing row for that triple has Source IS NULL → delete it, insert new.
-  ─ If rows exist but none match the filename → insert alongside (not duplicate).
-  ─ If a row already has the same Source → skip.
-
-Requirements: boto3, fitparse, db.get_db_connection()
+Changes:
+- Requires a tenant key when run as a script: --tenant eubc
+- Uses the app's tenants config to derive S3 bucket/prefix (prefix is namespaced by tenant)
+- Binds DB access to the tenant via db.tenant_context
+- Adds configure_storage(...) so callers can set S3 context when importing this module
+- Python 3.9 compatible (no PEP 604 unions)
 """
 
-from __future__ import annotations
 import argparse
 import io
 import logging
+import os
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, Optional, List
 
 import boto3
 from fitparse import FitFile
-from db import get_db_connection,get_param
 
-# ── configuration ────────────────────────────────────────────────────────
-S3_BUCKET = "eubctrackingdata"
-S3_PREFIX = "fitfiles"
+from db import get_db_connection, get_param, tenant_context
+from run import app  # Flask app that has TENANTS loaded
 
+# ── logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s")
-
 logger = logging.getLogger(__name__)
 
-s3 = boto3.client("s3")  # ~/.aws/credentials
+# ── storage config (override per-tenant in main() or via configure_storage) ─
+S3_BUCKET = os.getenv("S3_BUCKET", "eubctrackingdata")
+S3_PREFIX = os.getenv("S3_PREFIX", "fitfiles")  # will become f"{base}/{tenant}"
+s3 = boto3.client("s3")  # will be reused
 
-# ── helpers ──────────────────────────────────────────────────────────────
+def configure_storage(bucket: str, prefix: str, client=None) -> None:
+    """Allow callers (e.g. get_fitfiles.py) to set S3 bucket/prefix and client."""
+    global S3_BUCKET, S3_PREFIX, s3
+    S3_BUCKET = bucket
+    S3_PREFIX = prefix
+    if client is not None:
+        # optional injection of a specific boto3 client
+        s3 = client
 
-def norm(name: str | None) -> str | None:
-    """
-    Return lowercase, trimmed base-name of a path (or None).
-    Examples:
-        "FITFILES/55/A.BC.FIT" → "a.bc.fit"
-        "/foo/bar/abc.fit "    → "abc.fit"
-    """
+# ── helpers ────────────────────────────────────────────────────────────────
+
+def norm(name: Optional[str]) -> Optional[str]:
+    """Lowercase, trimmed base-name of a path (or None)."""
     if name is None:
         return None
     return name.rsplit("/", 1)[-1].strip().lower()
 
 def row_val(row, key_or_idx):
     if isinstance(row, dict):
-        # Assume key_or_idx is a column name
         return row.get(key_or_idx)
-    else:
-        # Assume row is a tuple, so index is okay
-        return row[key_or_idx]
+    return row[key_or_idx]
 
 def iter_athletes_with_links(cur) -> Iterator[Tuple[int, str]]:
-    """
-    Yield (Athlete_ID, DropBox) regardless of cursor type.
-    """
+    """Yield (Athlete_ID, DropBox) regardless of cursor type."""
     cur.execute(
         "SELECT Athlete_ID, DropBox "
         "FROM Athletes "
         "WHERE DropBox IS NOT NULL"
     )
-
     for row in cur.fetchall():
-        if isinstance(row, dict):        # DictCursor
-            aid  = row["Athlete_ID"]
-            link = row["DropBox"]
-        else:                            # regular tuple
+        if isinstance(row, dict):
+            aid = row["Athlete_ID"]; link = row["DropBox"]
+        else:
             aid, link = row
         yield int(aid), link
 
-
-
 def iter_fit_keys_for_athlete(aid: int) -> Iterator[str]:
+    """List FIT/TCX object keys for an athlete under the configured tenant prefix."""
     pref = f"{S3_PREFIX}/{aid}/"
     paginator = s3.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=pref):
@@ -87,43 +80,39 @@ def iter_fit_keys_for_athlete(aid: int) -> Iterator[str]:
             if key.lower().endswith((".fit", ".tcx")):
                 yield key
 
-# ── HR helpers ───────────────────────────────────────────────────────────
+# ── HR helpers ─────────────────────────────────────────────────────────────
 
-def get_athlete_hr(cur, aid: int) -> tuple[int | None, int | None]:
+def get_athlete_hr(cur, aid: int) -> Tuple[Optional[int], Optional[int]]:
     cur.execute("SELECT Rest_HR, Max_HR FROM Athletes WHERE Athlete_ID=%s", (aid,))
     r = cur.fetchone()
     if not r:
         logger.warning("No HR row found for Athlete_ID=%s", aid)
         return None, None
-    logger.debug("Fetched HR for %s: %s", aid, r)
-    # Access as tuple or dict
     try:
         return r["Rest_HR"], r["Max_HR"]
     except (TypeError, KeyError):
-        # Fall back to positional access
         return r[0], r[1]
 
 def sport_factor(activity: str) -> float:
-    # Normalize spacing & case to match Params table keys
+    # Normalize key to match Params table
     activity_key = activity.strip().title()
-
     try:
         return float(get_param(activity_key).value)
     except Exception:
-        # Fallback to "Other" if no match
         return float(get_param("Other").value)
 
 def calculate_t2(
-    hr_data: list[tuple[datetime, int]],
-    rest_hr: int | None,
-    max_hr: int | None,
+    hr_data: List[Tuple[datetime, int]],
+    rest_hr: Optional[int],
+    max_hr: Optional[int],
     activity: str
-) -> tuple[int, list[float], float, list[float]]:
+) -> Tuple[int, List[float], float, List[float]]:
     """
-    Compute T2Minutes and also return:
-      - zones_sec: list of 6 elements with seconds in each zone
-      - activity_factor
-      - weights list
+    Returns:
+      T2 minutes (int),
+      zones_sec (len 6),
+      activity_factor (float),
+      weights (len 6)
     """
     if not (rest_hr and max_hr and max_hr > rest_hr):
         return 0, [0]*6, sport_factor(activity), [
@@ -136,7 +125,7 @@ def calculate_t2(
         ]
 
     zones = [0.0] * 6
-    last_ts = None
+    last_ts: Optional[datetime] = None
 
     # thresholds
     hr_z0 = float(get_param("HR_Z0").value)
@@ -172,25 +161,20 @@ def calculate_t2(
     ]
     activity_factor = sport_factor(activity)
 
-    t2_raw = sum(z * w for z, w in zip(zones, weights)) / 60
+    t2_raw = sum(z * w for z, w in zip(zones, weights)) / 60.0
     t2 = int(round(t2_raw * activity_factor))
-
-    logger.debug("Zones(sec): %s", zones)
-    logger.debug("T2 raw: %.2f × act=%.2f → T2=%s", t2_raw, activity_factor, t2)
-
     return t2, zones, activity_factor, weights
 
-def classify_activity(sport: str | None, sub: str | None) -> str:
+def classify_activity(sport: Optional[str], sub: Optional[str]) -> str:
     s  = (sport or "").strip().lower()
     ss = (sub or "").strip().lower()
 
-    # Sub-sport overrides (handles fitness_equipment + indoor_rowing, etc.)
     sub_map = {
-        "indoor_rowing":  "Erg",
-        "indoor-rowing":  "Erg",
-        "rower":          "Erg",
-        "erg":            "Erg",
-        "ergometer":      "Erg",
+        "indoor_rowing": "Erg",
+        "indoor-rowing": "Erg",
+        "rower":         "Erg",
+        "erg":           "Erg",
+        "ergometer":     "Erg",
 
         "indoor_cycling": "Static Bike",
         "indoor-cycling": "Static Bike",
@@ -202,7 +186,6 @@ def classify_activity(sport: str | None, sub: str | None) -> str:
     if ss in sub_map:
         return sub_map[ss]
 
-    # Fall back to sport-only mapping
     sport_map = {
         "rowing":   "Water",
         "cycling":  "Bike",
@@ -212,32 +195,30 @@ def classify_activity(sport: str | None, sub: str | None) -> str:
     }
     return sport_map.get(s, "Other")
 
+# ── FIT / TCX parsing ─────────────────────────────────────────────────────
 
-# ── FIT parsing ───────────────────────────────────────────────────────────
-
-def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
+def parse_fit_bytes(buf: bytes, rest_hr: Optional[int], max_hr: Optional[int]):
     fit = FitFile(io.BytesIO(buf)); fit.parse()
-    sport = sub = "unknown"; dur_s = dist_m = 0; dt: datetime | None = None
+    sport = "unknown"; sub = None; dur_s = 0; dist_m = 0; dt: Optional[datetime] = None
 
     for msg in fit.get_messages("session"):
         d = {f.name: f.value for f in msg}
         sport = str(d.get("sport", sport)).lower()
-        sub   = str(d.get("sub_sport", "")).lower() or None
+        sub   = (str(d.get("sub_sport", "")).lower() or None)
         dur_s = int(d.get("total_elapsed_time") or d.get("total_timer_time") or 0)
         dist_m= int(d.get("total_distance") or 0)
-        dt    = d.get("start_time", dt); break
+        dt    = d.get("start_time", dt)
+        break
 
     if not dt:
         for msg in fit.get_messages("activity"):
             dt = msg.get_value("timestamp"); break
     dt = dt or datetime.now(timezone.utc)
 
-    mapping = None  # no longer used
     activity = classify_activity(sport, sub)
     comment  = f"Sport: {sport} | Sub: {sub or 'n/a'}"
 
-    # 🆕 Standardised HR data
-    hr_data = []
+    hr_data: List[Tuple[datetime, int]] = []
     for rec in fit.get_messages("record"):
         hr = rec.get_value("heart_rate")
         ts = rec.get_value("timestamp")
@@ -247,8 +228,7 @@ def parse_fit_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
     t2, zones, act_factor, weights = calculate_t2(hr_data, rest_hr, max_hr, activity)
     return dt, activity, dur_s, dist_m, comment, t2, zones, act_factor, weights
 
-
-def parse_tcx_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
+def parse_tcx_bytes(buf: bytes, rest_hr: Optional[int], max_hr: Optional[int]):
     ns = {'tcx': 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'}
     root = ET.fromstring(buf)
     activity_node = root.find(".//tcx:Activity", ns)
@@ -262,8 +242,8 @@ def parse_tcx_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
     id_node = activity_node.find("tcx:Id", ns)
     dt = datetime.fromisoformat(id_node.text.replace("Z", "+00:00")) if id_node is not None else datetime.now(timezone.utc)
 
-    dist_m = dur_s = 0
-    hr_data = []
+    dist_m = 0
+    hr_data: List[Tuple[datetime, int]] = []
 
     for tp in root.findall(".//tcx:Trackpoint", ns):
         ts_node = tp.find("tcx:Time", ns)
@@ -278,23 +258,17 @@ def parse_tcx_bytes(buf: bytes, rest_hr: int | None, max_hr: int | None):
         hr_data.append((ts, hr))
 
         if dist_node is not None and dist_node.text:
-            dist_m = int(float(dist_node.text))  # will keep getting overwritten
+            dist_m = int(float(dist_node.text))
 
-    if hr_data:
-        dur_s = int((hr_data[-1][0] - dt).total_seconds())
-
-    t2, zones, act_factor, weights = calculate_t2(hr_data, rest, max_hr, activity)
+    dur_s = int((hr_data[-1][0] - dt).total_seconds()) if hr_data else 0
+    t2, zones, act_factor, weights = calculate_t2(hr_data, rest_hr, max_hr, activity)
     return dt, activity, dur_s, dist_m, comment, t2, zones, act_factor, weights
 
 def _to_time(seconds: int):
     return (datetime.min + timedelta(seconds=int(seconds))).time()
 
-def insert_zones(cur, session_id: int, zones_sec: list[float],
-                 activity_factor: float, weights: list[float]):
-    """
-    Insert/Upsert per-zone details for this session.
-    `zones_sec` is seconds in zone (len == 6).
-    """
+def insert_zones(cur, session_id: int, zones_sec: List[float],
+                 activity_factor: float, weights: List[float]):
     for zone_idx, sec in enumerate(zones_sec):
         t2_minutes = int(round((sec * weights[zone_idx]) / 60.0 * activity_factor))
         cur.execute(
@@ -315,11 +289,8 @@ def insert_zones(cur, session_id: int, zones_sec: list[float],
             )
         )
 
+# ── UPSERT helpers ─────────────────────────────────────────────────────────
 
-
-# ── UPSERT (merged) ───────────────────────────────────────────────────────
-# ---------------------------------------------------------------------------
-# helper: insert one row
 def insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source) -> int:
     cur.execute(
         """INSERT INTO Sessions (
@@ -337,15 +308,13 @@ def insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source) -
             source,
         ),
     )
-    session_id = cur.lastrowid  # <-- capture the new PK
+    session_id = cur.lastrowid
     logger.info("    + session saved (src=%s, id=%s)", source, session_id)
     return session_id
-# ---------------------------------------------------------------------------
-
 
 def upsert_session(cur, aid: int, dt: datetime, activity: str,
                    dur_s: int, dist_m: int, comment: str,
-                   t2: int, zones: list[float], act_factor: float, weights: list[float],
+                   t2: int, zones: List[float], act_factor: float, weights: List[float],
                    source_raw: str):
     source = source_raw.rsplit("/", 1)[-1].strip().lower()
 
@@ -362,13 +331,11 @@ def upsert_session(cur, aid: int, dt: datetime, activity: str,
     def col(row, key, idx):
         return row[key] if isinstance(row, dict) else row[idx]
 
-    # 1) nothing there yet → insert
     if not rows:
         sid = insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
         insert_zones(cur, sid, zones, act_factor, weights)
         return
 
-    # 2) replace NULL-source row
     for r in rows:
         if col(r, "Source", 1) is None:
             cur.execute("DELETE FROM Sessions WHERE Session_ID = %s",
@@ -377,16 +344,14 @@ def upsert_session(cur, aid: int, dt: datetime, activity: str,
             insert_zones(cur, sid, zones, act_factor, weights)
             return
 
-    # 4) duplicate filename? skip
     if any(((col(r, "Source", 1) or "").rsplit("/", 1)[-1].strip().lower() == source) for r in rows):
         logger.debug("    · duplicate (same source) – skipped")
         return
 
-    # 3) same A/D/A but new filename → insert alongside
     sid = insert_session(cur, aid, dt, activity, dur_s, dist_m, comment, t2, source)
     insert_zones(cur, sid, zones, act_factor, weights)
 
-# ---------------------------------------------------------------------------
+# ── S3 processing ──────────────────────────────────────────────────────────
 
 def process_single_file(cur, aid, key):
     try:
@@ -395,14 +360,14 @@ def process_single_file(cur, aid, key):
         logger.error("    ! S3 download failed: %s", e)
         return
 
-    rest, max_hr = get_athlete_hr(cur, aid)
+    rest_hr, max_hr = get_athlete_hr(cur, aid)
     fname = key.rsplit("/", 1)[-1].lower()
 
     try:
         if fname.endswith(".fit"):
-            dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights = parse_fit_bytes(buf, rest, max_hr)
+            dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights = parse_fit_bytes(buf, rest_hr, max_hr)
         elif fname.endswith(".tcx"):
-            dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights = parse_tcx_bytes(buf, rest, max_hr)
+            dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights = parse_tcx_bytes(buf, rest_hr, max_hr)
         else:
             logger.warning("    ! Unsupported file type: %s", fname)
             return
@@ -412,28 +377,45 @@ def process_single_file(cur, aid, key):
 
     upsert_session(cur, aid, dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights, fname)
 
-
-# ── main loop ─────────────────────────────────────────────────────────────
+# ── main ───────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--aid', type=int, help="Athlete ID")
-    parser.add_argument('--file', help="Specific S3 key of FIT file to process")
+    parser.add_argument('--tenant', required=True, help="Tenant key, e.g. 'eubc' or 'sabc'")
+    parser.add_argument('--aid', type=int, help="Athlete ID (optional if processing all)")
+    parser.add_argument('--file', help="Specific S3 key to process (optional)")
     args = parser.parse_args()
 
-    conn = get_db_connection(); cur = conn.cursor()
-    logger.info("Importing FIT sessions from S3 → MySQL …")
+    with app.app_context():
+        tenants = app.config.get("TENANTS", {})
+        if args.tenant not in tenants:
+            raise SystemExit(f"Unknown tenant '{args.tenant}'. Available: {list(tenants.keys())}")
 
-    if args.aid and args.file:
-        process_single_file(cur, args.aid, args.file)
-    else:
-        for aid, _ in iter_athletes_with_links(cur):
-            logger.info("Athlete %s", aid)
-            for key in iter_fit_keys_for_athlete(aid):
-                process_single_file(cur, aid, key)
+        cfg = tenants[args.tenant]
+        bucket = cfg.get("s3_bucket", S3_BUCKET)
+        base   = cfg.get("s3_prefix", "fitfiles")
+        # Namespace by tenant, so each tenant's files live under its own folder
+        prefix = f"{base}/{args.tenant}"
 
-    conn.commit(); cur.close(); conn.close()
-    logger.info("✓ All done")
+        # configure storage for this run
+        configure_storage(bucket=bucket, prefix=prefix)
+
+        # Bind DB to the tenant and run
+        with tenant_context(app, args.tenant):
+            conn = get_db_connection(); cur = conn.cursor()
+            logger.info("Importing FIT sessions from s3://%s/%s → MySQL (%s) …",
+                        S3_BUCKET, S3_PREFIX, args.tenant)
+
+            if args.aid and args.file:
+                process_single_file(cur, args.aid, args.file)
+            else:
+                for aid, _ in iter_athletes_with_links(cur):
+                    logger.info("Athlete %s", aid)
+                    for key in iter_fit_keys_for_athlete(aid):
+                        process_single_file(cur, aid, key)
+
+            conn.commit(); cur.close(); conn.close()
+            logger.info("✓ All done")
 
 if __name__ == "__main__":
     main()

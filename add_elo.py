@@ -1,6 +1,6 @@
 from datetime import date, timedelta, datetime
 from collections import defaultdict
-from db import get_db_connection
+from db import get_db_connection, get_param
 
 def add_elo():
     conn = get_db_connection()
@@ -56,7 +56,7 @@ def add_elo():
 
 def generate_daily_elo(results, seats, athletes, start_date):
 
-    elo_gearing = 8     #Controls how quickly on-the-water ratings change
+    elo_gearing = float(get_param("Elo_Gearing").value)    #Controls how quickly on-the-water ratings change
 
     result_updates = {}
 
