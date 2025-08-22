@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-
 """
 Tenant-aware FIT/TCX session importer.
 
-Changes:
 - Requires a tenant key when run as a script: --tenant eubc
 - Uses the app's tenants config to derive S3 bucket/prefix (prefix is namespaced by tenant)
 - Binds DB access to the tenant via db.tenant_context
 - Adds configure_storage(...) so callers can set S3 context when importing this module
-- Python 3.9 compatible (no PEP 604 unions)
+- Skips files with session dates before Params.Season_Start (YYYY-MM-DD)
+- Python 3.9 compatible
 """
 
 import argparse
@@ -16,7 +15,7 @@ import io
 import logging
 import os
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from typing import Iterator, Tuple, Optional, List
 
 import boto3
@@ -40,13 +39,27 @@ def configure_storage(bucket: str, prefix: str, client=None) -> None:
     S3_BUCKET = bucket
     S3_PREFIX = prefix
     if client is not None:
-        # optional injection of a specific boto3 client
         s3 = client
+
+# ── Params helpers ─────────────────────────────────────────────────────────
+
+def _season_start_date() -> Optional[date]:
+    """Read Params.Season_Start (YYYY-MM-DD) and return a date or None."""
+    try:
+        raw = get_param("Season_Start", None).value
+    except Exception:
+        raw = None
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(str(raw).strip(), "%Y-%m-%d").date()
+    except Exception:
+        logger.warning("Invalid Season_Start param value: %r (expected YYYY-MM-DD). Ignoring.", raw)
+        return None
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
 def norm(name: Optional[str]) -> Optional[str]:
-    """Lowercase, trimmed base-name of a path (or None)."""
     if name is None:
         return None
     return name.rsplit("/", 1)[-1].strip().lower()
@@ -57,7 +70,6 @@ def row_val(row, key_or_idx):
     return row[key_or_idx]
 
 def iter_athletes_with_links(cur) -> Iterator[Tuple[int, str]]:
-    """Yield (Athlete_ID, DropBox) regardless of cursor type."""
     cur.execute(
         "SELECT Athlete_ID, DropBox "
         "FROM Athletes "
@@ -71,7 +83,6 @@ def iter_athletes_with_links(cur) -> Iterator[Tuple[int, str]]:
         yield int(aid), link
 
 def iter_fit_keys_for_athlete(aid: int) -> Iterator[str]:
-    """List FIT/TCX object keys for an athlete under the configured tenant prefix."""
     pref = f"{S3_PREFIX}/{aid}/"
     paginator = s3.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=pref):
@@ -94,7 +105,6 @@ def get_athlete_hr(cur, aid: int) -> Tuple[Optional[int], Optional[int]]:
         return r[0], r[1]
 
 def sport_factor(activity: str) -> float:
-    # Normalize key to match Params table
     activity_key = activity.strip().title()
     try:
         return float(get_param(activity_key).value)
@@ -107,13 +117,6 @@ def calculate_t2(
     max_hr: Optional[int],
     activity: str
 ) -> Tuple[int, List[float], float, List[float]]:
-    """
-    Returns:
-      T2 minutes (int),
-      zones_sec (len 6),
-      activity_factor (float),
-      weights (len 6)
-    """
     if not (rest_hr and max_hr and max_hr > rest_hr):
         return 0, [0]*6, sport_factor(activity), [
             float(get_param("HR_Z0_W").value),
@@ -127,7 +130,6 @@ def calculate_t2(
     zones = [0.0] * 6
     last_ts: Optional[datetime] = None
 
-    # thresholds
     hr_z0 = float(get_param("HR_Z0").value)
     hr_z1 = float(get_param("HR_Z1").value)
     hr_z2 = float(get_param("HR_Z2").value)
@@ -139,7 +141,6 @@ def calculate_t2(
         if last_ts:
             dsec = (ts - last_ts).total_seconds()
             hr_pct = (hr - rest_hr) / (max_hr - rest_hr)
-
             if hr_pct >= hr_z0:
                 idx = (
                     0 if hr_pct < hr_z1 else
@@ -175,7 +176,6 @@ def classify_activity(sport: Optional[str], sub: Optional[str]) -> str:
         "rower":         "Erg",
         "erg":           "Erg",
         "ergometer":     "Erg",
-
         "indoor_cycling": "Static Bike",
         "indoor-cycling": "Static Bike",
         "spin":           "Static Bike",
@@ -353,7 +353,7 @@ def upsert_session(cur, aid: int, dt: datetime, activity: str,
 
 # ── S3 processing ──────────────────────────────────────────────────────────
 
-def process_single_file(cur, aid, key):
+def process_single_file(cur, aid, key, season_start: Optional[date] = None):
     try:
         buf = s3.get_object(Bucket=S3_BUCKET, Key=key)["Body"].read()
     except Exception as e:
@@ -375,6 +375,11 @@ def process_single_file(cur, aid, key):
         logger.error("    ! File parse failed (%s): %s", fname, e)
         return
 
+    # ⛔ season filter
+    if season_start and dt.date() < season_start:
+        logger.info("    · Skipping %s (session %s < Season_Start %s)", fname, dt.date(), season_start)
+        return
+
     upsert_session(cur, aid, dt, act, dur_s, dist_m, comment, t2, zones, act_factor, weights, fname)
 
 # ── main ───────────────────────────────────────────────────────────────────
@@ -394,25 +399,29 @@ def main():
         cfg = tenants[args.tenant]
         bucket = cfg.get("s3_bucket", S3_BUCKET)
         base   = cfg.get("s3_prefix", "fitfiles")
-        # Namespace by tenant, so each tenant's files live under its own folder
         prefix = f"{base}/{args.tenant}"
 
-        # configure storage for this run
         configure_storage(bucket=bucket, prefix=prefix)
 
-        # Bind DB to the tenant and run
         with tenant_context(app, args.tenant):
+            # Read once per run
+            season_start = _season_start_date()
+            if season_start:
+                logger.info("Season_Start = %s (files earlier than this will be skipped)", season_start)
+            else:
+                logger.info("No Season_Start set; all files will be considered.")
+
             conn = get_db_connection(); cur = conn.cursor()
             logger.info("Importing FIT sessions from s3://%s/%s → MySQL (%s) …",
                         S3_BUCKET, S3_PREFIX, args.tenant)
 
             if args.aid and args.file:
-                process_single_file(cur, args.aid, args.file)
+                process_single_file(cur, args.aid, args.file, season_start)
             else:
                 for aid, _ in iter_athletes_with_links(cur):
                     logger.info("Athlete %s", aid)
                     for key in iter_fit_keys_for_athlete(aid):
-                        process_single_file(cur, aid, key)
+                        process_single_file(cur, aid, key, season_start)
 
             conn.commit(); cur.close(); conn.close()
             logger.info("✓ All done")

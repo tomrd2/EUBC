@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ 'New' if mode=='new' else 'Edit' }} Parameter</title>
+  <link rel="stylesheet" href="{{ url_for('club_static', filename='style.css') }}">
+  <style>
+    .wrap { max-width: 700px; margin: 24px auto; background: #fff; padding: 16px; border-radius: 8px; }
+    label { display:block; margin-top:12px; font-weight: 600; }
+    input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; }
+    textarea { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; min-height: 100px; }
+    .row { margin-top: 14px; }
+    .btn { padding: 8px 12px; border-radius: 6px; border: 1px solid #0b4; background: #0c5; color: #fff; text-decoration: none; }
+    .btn.gray { background: #666; border-color: #555; }
+    .flash.error { background:#ffe5e5; color:#a40000; padding:8px 12px; border-radius:6px; margin:12px 0; }
+    .flash.success { background:#e8fff0; color:#065f46; padding:8px 12px; border-radius:6px; margin:12px 0; }
+  </style>
+</head>
+<body>
+  {% include "_header.html" %}
+
+  <div class="wrap">
+    <h2>{{ 'New' if mode=='new' else 'Edit' }} Parameter</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if mode == 'new' %}
+    <form method="post" action="{{ url_for('params.new_param') }}">
+      <label for="Param">Param (≤ 20 chars, unique)</label>
+      <input type="text" id="Param" name="Param" maxlength="20" required value="{{ row.Param }}">
+    {% else %}
+    <form method="post" action="{{ url_for('params.edit_param', param=row.Param) }}">
+      <label>Param</label>
+      <input type="text" value="{{ row.Param }}" disabled>
+    {% endif %}
+
+      <label for="Value">Value (≤ 45 chars)</label>
+      <input type="text" id="Value" name="Value" maxlength="45" required value="{{ row.Value }}">
+
+      <label for="Description">Description (≤ 256 chars)</label>
+      <textarea id="Description" name="Description" maxlength="256">{{ row.Description }}</textarea>
+
+      <div class="row">
+        <button class="btn" type="submit">{{ 'Create' if mode=='new' else 'Save' }}</button>
+        <a class="btn gray" href="{{ url_for('params.list_params') }}" style="margin-left:8px;">Cancel</a>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

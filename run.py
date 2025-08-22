@@ -18,6 +18,7 @@ from routes.timing import timing_bp
 from routes.results import results_bp
 from routes.view_lineups import view_lineups_bp
 from routes.dashboard import dashboard_bp
+from routes.params import params_bp
 
 from sockets import socketio  # ✅
 
@@ -258,6 +259,7 @@ app.register_blueprint(pieces_bp,        url_prefix='/<club>')
 app.register_blueprint(timing_bp,        url_prefix='/<club>')
 app.register_blueprint(results_bp,       url_prefix='/<club>')
 app.register_blueprint(dashboard_bp,     url_prefix='/<club>')
+app.register_blueprint(params_bp, url_prefix='/<club>')
 
 # ---------------------------
 # Gunicorn/socketio exports

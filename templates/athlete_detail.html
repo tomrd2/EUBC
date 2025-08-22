@@ -3,22 +3,56 @@
 <head>
   <title>Athlete Detail</title>
   <link rel="stylesheet" href="{{ url_for('club_static', filename='style.css') }}">
-  <style>
-    .form-card {
-      max-width: 600px; margin: 30px auto; background: #f9f9f9;
-      padding: 20px 24px; border-radius: 8px; border: 1px solid #ccc;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 14px;
-    }
-    .form-card table { width: 100%; border-spacing: 0; }
-    .form-card td { padding: 6px 8px; vertical-align: middle; }
-    .form-card input, .form-card select, .form-card textarea {
-      width: 100%; padding: 5px 6px; font-size: 13px; box-sizing: border-box;
-      border-radius: 4px; border: 1px solid #bbb;
-    }
-    .readonly { background: #f0f0f0; color: #555; }
-    .form-card button.btn { margin-top: 10px; background:#0074D9; color:#fff; border:none; padding:6px 14px; font-size:14px; border-radius:4px; cursor:pointer; }
-    .form-card button.btn:hover { background:#005fa3; }
-  </style>
+<style>
+  .form-card {
+    max-width: 600px; margin: 30px auto; background: #f9f9f9;
+    padding: 20px 24px; border-radius: 8px; border: 1px solid #ccc;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 14px;
+  }
+  .form-card table { width: 100%; border-spacing: 0; }
+  .form-card td { padding: 6px 8px; vertical-align: middle; }
+  .form-card input, .form-card select, .form-card textarea {
+    width: 100%; padding: 5px 6px; font-size: 13px; box-sizing: border-box;
+    border-radius: 4px; border: 1px solid #bbb;
+  }
+  .readonly { background: #f0f0f0; color: #555; }
+
+  /* ✅ Unified button styling for both <button> and <a> */
+  .form-card .btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-sizing: border-box;
+
+    height: 36px;               /* consistent height */
+    min-width: 120px;           /* consistent width */
+    padding: 0 14px;
+    border-radius: 4px;
+    border: 1px solid #005fa3;
+    background: #0074D9;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .form-card .btn:hover { background:#005fa3; }
+
+  /* Optional secondary style for Cancel */
+  .form-card .btn.secondary {
+    background: #6b7280;
+    border-color: #6b7280;
+  }
+
+  /* Put spacing/alignment on the container, not the buttons */
+  .form-card .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    align-items: center;
+  }
+</style>
+
 </head>
 <body>
   {% include "_header.html" %}
@@ -117,6 +151,16 @@
           </tr>
 
           <tr>
+            <td><label>Start Rating:</label></td>
+            <td>
+              <input type="number"
+                    name="Start_Rating"
+                    value="{{ athlete.Start_Rating }}"
+                    {% if not is_coach %}disabled class="readonly"{% endif %}>
+            </td>
+          </tr>
+
+          <tr>
             <td><label>Last Login:</label></td>
             <td><input type="text" class="readonly" value="{{ athlete.Last_Login or '' }}" disabled></td>
           </tr>
@@ -128,9 +172,11 @@
 
           <tr>
             <td></td>
-            <td style="display:flex; gap:10px;">
-              <button class="btn" type="submit">💾 Save</button>
+            <td>
+              <div class="btn-row">
+                <button class="btn" type="submit">💾 Save</button>
                 <a class="btn" href="{{ url_for('athletes.athletes') }}">Cancel</a>
+              </div>
             </td>
           </tr>
         </tbody>

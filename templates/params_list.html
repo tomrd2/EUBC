@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>System Parameters</title>
+  <link rel="stylesheet" href="{{ url_for('club_static', filename='style.css') }}">
+  <style>
+    .wrap { max-width: 900px; margin: 24px auto; background: #fff; padding: 16px; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+    th { text-align: left; background: #f7f7f7; }
+    .actions a, .actions form { display: inline-block; margin-right: 8px; }
+    .btn { padding: 8px 12px; border-radius: 6px; border: 1px solid #0b4; background: #0c5; color: #fff; text-decoration: none; }
+    .btn.secondary { background: #2c7; }
+    .btn.warn { background: #d33; border-color: #b22; }
+    .flash.error { background:#ffe5e5; color:#a40000; padding:8px 12px; border-radius:6px; margin:12px 0; }
+    .flash.success { background:#e8fff0; color:#065f46; padding:8px 12px; border-radius:6px; margin:12px 0; }
+  </style>
+</head>
+<body>
+  {% include "_header.html" %}
+
+  <div class="wrap">
+    <h2>System Parameters</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <p><a class="btn" href="{{ url_for('params.new_param') }}">+ New Parameter</a></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 20%">Param</th>
+          <th style="width: 30%">Value</th>
+          <th>Description</th>
+          <th style="width: 160px">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><code>{{ r.Param }}</code></td>
+          <td>{{ r.Value }}</td>
+          <td>{{ r.Description }}</td>
+          <td class="actions">
+            <a class="btn secondary" href="{{ url_for('params.edit_param', param=r.Param) }}">Edit</a>
+            <form method="post" action="{{ url_for('params.delete_param', param=r.Param) }}" style="display:inline" onsubmit="return confirm('Delete {{ r.Param }}?');">
+              <button type="submit" class="btn warn">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center; color:#666;">No parameters found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

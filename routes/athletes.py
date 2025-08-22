@@ -12,7 +12,7 @@ athletes_bp = Blueprint('athletes', __name__)
 @login_required
 def athletes():
     if not current_user.coach:
-        return redirect(url_for('app_menu'))
+        return redirect(url_for('core.app_menu'))
 
     conn = get_db_connection()
     with conn.cursor() as cursor:
@@ -109,7 +109,7 @@ def _none_if_empty(v):
 def athlete_detail(athlete_id):
     conn = get_db_connection()
     try:
-        is_coach = bool(current_user.coach)  # ✅ Use the built-in property
+        is_coach = bool(current_user.coach)
 
         with conn.cursor() as cur:
             if request.method == 'POST':
@@ -120,8 +120,8 @@ def athlete_detail(athlete_id):
                 dropbox   = _none_if_empty(request.form.get('DropBox', ''))
                 max_hr    = _none_if_empty(request.form.get('Max_HR', ''))
                 rest_hr   = _none_if_empty(request.form.get('Rest_HR', ''))
-                if isinstance(max_hr, str) and max_hr.isdigit(): max_hr = int(max_hr)
-                if isinstance(rest_hr, str) and rest_hr.isdigit(): rest_hr = int(rest_hr)
+                if isinstance(max_hr, str) and max_hr.lstrip('-').isdigit(): max_hr = int(max_hr)
+                if isinstance(rest_hr, str) and rest_hr.lstrip('-').isdigit(): rest_hr = int(rest_hr)
 
                 cols = [
                     ("Full_Name", full_name),
@@ -133,7 +133,7 @@ def athlete_detail(athlete_id):
                 ]
 
                 if is_coach:
-                    # Coaches can also edit these
+                    # Coaches can also edit these, incl. Start_Rating
                     m_w    = request.form.get('M_W', '').strip()
                     side   = _none_if_empty(request.form.get('Side', ''))
                     joined = _none_if_empty(request.form.get('Joined', ''))
@@ -141,13 +141,18 @@ def athlete_detail(athlete_id):
                     cox    = 1 if 'Cox'    in request.form else 0
                     coach  = 1 if 'Coach'  in request.form else 0
 
+                    start_rating = _none_if_empty(request.form.get('Start_Rating', ''))
+                    if isinstance(start_rating, str) and start_rating.lstrip('-').isdigit():
+                        start_rating = int(start_rating)
+
                     cols += [
-                        ("M_W",    m_w),
-                        ("Side",   side),
-                        ("Joined", joined),
-                        ("Sculls", sculls),
-                        ("Cox",    cox),
-                        ("Coach",  coach),
+                        ("M_W",          m_w),
+                        ("Side",         side),
+                        ("Joined",       joined),
+                        ("Sculls",       sculls),
+                        ("Cox",          cox),
+                        ("Coach",        coach),
+                        ("Start_Rating", start_rating),  # ✅ coach-only editable
                     ]
 
                 set_clause = ", ".join([f"{c}=%s" for c,_ in cols])
@@ -172,6 +177,7 @@ def athlete_detail(athlete_id):
             if not athlete:
                 return "Athlete not found", 404
 
+        # pass is_coach so the template can disable the field for athletes
         return render_template('athlete_detail.html', athlete=athlete, is_coach=is_coach)
 
     finally:
