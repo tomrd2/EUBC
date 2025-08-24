@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os, secrets, string, smtplib, ssl
 from email.message import EmailMessage
 from flask import current_app, g, abort
+from typing import Optional  # add this import
 
 import datetime
 import pymysql
@@ -19,7 +20,7 @@ def _generate_temp_password(length: int = 12) -> str:
         if any(c.islower() for c in pw) and any(c.isupper() for c in pw) and any(c.isdigit() for c in pw):
             return pw
 
-def _send_mail(to_email: str, subject: str, text: str, html: str | None = None) -> None:
+def _send_mail(to_email: str, subject: str, text: str, html: Optional[str] = None) -> None:
     # Prefer tenant-specific mail config, fall back to env vars
     tcfg = (current_app.config.get("TENANTS", {}).get(getattr(g, "tenant_key", ""), {}) or {})
     m = tcfg.get("mail", {}) if isinstance(tcfg, dict) else {}
