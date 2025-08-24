@@ -4,44 +4,19 @@
   <title>Line-Ups</title>
   <link rel="stylesheet" href="{{ url_for('club_static', filename='style.css') }}">
   <style>
-    .athlete-columns {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 10px;
-    }
-    .column {
-      flex: 1;
-      background: #f2f9ff;
-      border: 1px solid #ccc;
-      padding: 5px;
-      border-radius: 6px;
-    }
-    .column h3 {
-      text-align: center;
-      margin-top: 0;
-      background-color: #0074D9;
-      color: white;
-      padding: 8px;
-      border-radius: 4px;
-    }
-    .athlete-name {
-      margin: 4px 0;
-      padding: 4px;
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
+    .athlete-columns { display: flex; gap: 20px; margin-bottom: 10px; }
+    .column { flex: 1; background: #f2f9ff; border: 1px solid #ccc; padding: 5px; border-radius: 6px; }
+    .column h3 { text-align: center; margin-top: 0; background-color: #0074D9; color: white; padding: 8px; border-radius: 4px; }
+    .athlete-name { margin: 4px 0; padding: 4px; background: white; border: 1px solid #ddd; border-radius: 4px; }
+    h2, h3 { line-height: 1.2; }
 
-    h2, h3 {
-      line-height: 1.2;
-    }
+    /* seat slots */
+    .seat-slot { min-height: 24px; border: 1px dashed #bbb; border-radius: 4px; margin: 3px 0; padding: 2px 6px; display:flex; align-items:center; justify-content:space-between; }
+    .seat-slot.filled { border-style: solid; background: #fff; }
+    .remove-seat { cursor: pointer; opacity: 0.7; margin-left: 8px; }
+    .remove-seat:hover { opacity: 1; }
   </style>
 </head>
-
-<script>
-    const assignedSeats = {{ assigned_seats | tojson }};
-</script>
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
 <body>
   {% include "_header.html" %}
@@ -49,7 +24,6 @@
   <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;">
     <div style="display: flex; align-items: center; gap: 10px;">
       <a href="{{ url_for('outings.outings') }}" class="btn">← Back</a>
-    
       <form method="GET" action="{{ url_for('lineups.lineup_view', outing_id=outing_id) }}">
         <select name="gender" onchange="this.form.submit()" class="btn">
           <option value="all" {% if gender_filter == 'all' %}selected{% endif %}>All</option>
@@ -72,140 +46,119 @@
       {% endif %}
     </div>
   </div>
-    
 
-    <div class="athlete-columns">
-        <div class="column">
-        <h3>Strokes</h3>
-        {% for athlete in strokes %}
+  <div class="athlete-columns">
+    <div class="column">
+      <h3>Strokes</h3>
+      {% for athlete in strokes %}
         <div class="athlete-name" draggable="true"
-              data-athlete-id="{{ athlete.Athlete_ID }}"
-              data-athlete-name="{{ athlete.Full_Name }}"
-              data-mw="{{ athlete.M_W }}">
-       {{ athlete.Full_Name }}
-   </div>
-        {% endfor %}
+             data-athlete-id="{{ athlete.Athlete_ID }}"
+             data-athlete-name="{{ athlete.Full_Name }}"
+             data-mw="{{ athlete.M_W }}">
+          {{ athlete.Full_Name }}
         </div>
-
-        <div class="column">
-        <h3>Bows</h3>
-        {% for athlete in bows %}
-            <div class="athlete-name" draggable="true"
-                 data-athlete-id="{{ athlete.Athlete_ID }}"
-                 data-athlete-name="{{ athlete.Full_Name }}"
-                 data-mw="{{ athlete.M_W }}">
-                {{ athlete.Full_Name }}
-            </div>
-        {% endfor %}
-        </div>
-
-        <div class="column">
-          <h3>Boths</h3>
-          {% for athlete in boths %}
-            <div class="athlete-name" draggable="true"
-                  data-athlete-id="{{ athlete.Athlete_ID }}"
-                  data-athlete-name="{{ athlete.Full_Name }}"
-                  data-mw="{{ athlete.M_W }}">
-                {{ athlete.Full_Name }}
-            </div>
-          {% endfor %}
-        </div>
-        
-        <div class="column">
-          <h3>Neithers</h3>
-          {% for athlete in neithers %}
-            <div class="athlete-name" draggable="true"
-                  data-athlete-id="{{ athlete.Athlete_ID }}"
-                  data-athlete-name="{{ athlete.Full_Name }}"
-                  data-mw="{{ athlete.M_W }}">
-                {{ athlete.Full_Name }}
-            </div>
-          {% endfor %}
-          </div>
-
-        <div class="column">
-        <h3>Coxes</h3>
-        {% for athlete in coxes %}
-          <div class="athlete-name" draggable="true"
-                data-athlete-id="{{ athlete.Athlete_ID }}"
-                data-athlete-name="{{ athlete.Full_Name }}"
-                data-mw="{{ athlete.M_W }}">
-              {{ athlete.Full_Name }}
-          </div>
-        {% endfor %}
-        </div>
-        <div class="column" id="guest-column">
-          <h3>Guests</h3>
-          <input type="text" id="guest-input" placeholder="Enter guest name" style="width: 95%; box-sizing: border-box;">
-          <div id="guest-list"></div>
-        </div>
+      {% endfor %}
     </div>
+
+    <div class="column">
+      <h3>Bows</h3>
+      {% for athlete in bows %}
+        <div class="athlete-name" draggable="true"
+             data-athlete-id="{{ athlete.Athlete_ID }}"
+             data-athlete-name="{{ athlete.Full_Name }}"
+             data-mw="{{ athlete.M_W }}">
+          {{ athlete.Full_Name }}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="column">
+      <h3>Boths</h3>
+      {% for athlete in boths %}
+        <div class="athlete-name" draggable="true"
+             data-athlete-id="{{ athlete.Athlete_ID }}"
+             data-athlete-name="{{ athlete.Full_Name }}"
+             data-mw="{{ athlete.M_W }}">
+          {{ athlete.Full_Name }}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="column">
+      <h3>Neithers</h3>
+      {% for athlete in neithers %}
+        <div class="athlete-name" draggable="true"
+             data-athlete-id="{{ athlete.Athlete_ID }}"
+             data-athlete-name="{{ athlete.Full_Name }}"
+             data-mw="{{ athlete.M_W }}">
+          {{ athlete.Full_Name }}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="column">
+      <h3>Coxes</h3>
+      {% for athlete in coxes %}
+        <div class="athlete-name" draggable="true"
+             data-athlete-id="{{ athlete.Athlete_ID }}"
+             data-athlete-name="{{ athlete.Full_Name }}"
+             data-mw="{{ athlete.M_W }}">
+          {{ athlete.Full_Name }}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="column" id="guest-column">
+      <h3>Guests</h3>
+      <input type="text" id="guest-input" placeholder="Enter guest name" style="width: 95%; box-sizing: border-box;">
+      <div id="guest-list"></div>
+    </div>
+  </div>
 
   <div class="crew-grid">
-
-  
     {% for crew in crews %}
-    <div class="crew-column" data-crew-id="{{ crew.Crew_ID }}">
-      <div class="crew-row">
-        <input type="text" class="crew-edit" 
-               data-crew-id="{{ crew.Crew_ID }}" 
-               data-field="Hull_Name" 
-               value="{{ crew.Hull_Name or '' }}">
-      </div>
-  
-      <div class="crew-row">
-        <input type="text" class="crew-edit" 
-               data-crew-id="{{ crew.Crew_ID }}" 
-               data-field="Boat_Type" 
-               value="{{ crew.Boat_Type or '' }}">
-      </div>
-  
-      <div class="crew-row">
-        <input type="text" class="crew-edit" 
-               data-crew-id="{{ crew.Crew_ID }}" 
-               data-field="Crew_Name" 
-               value="{{ crew.Crew_Name or '' }}">
-      </div>
-      <div>
-        <button class="delete-crew-btn" data-crew-id="{{ crew.Crew_ID }}">🗑️ Delete</button>
-      </div>
-  
-      <div class="seats" data-crew-id="{{ crew.Crew_ID }}" data-boat-type="{{ crew.Boat_Type }}">
-        <!-- Seat slots will be added here by JS -->
-      </div>
-  
+      <div class="crew-column" data-crew-id="{{ crew.Crew_ID }}">
+        <div class="crew-row">
+          <input type="text" class="crew-edit" data-crew-id="{{ crew.Crew_ID }}" data-field="Hull_Name" value="{{ crew.Hull_Name or '' }}">
+        </div>
+        <div class="crew-row">
+          <input type="text" class="crew-edit" data-crew-id="{{ crew.Crew_ID }}" data-field="Boat_Type" value="{{ crew.Boat_Type or '' }}">
+        </div>
+        <div class="crew-row">
+          <input type="text" class="crew-edit" data-crew-id="{{ crew.Crew_ID }}" data-field="Crew_Name" value="{{ crew.Crew_Name or '' }}">
+        </div>
+        <div>
+          <button class="delete-crew-btn" data-crew-id="{{ crew.Crew_ID }}">🗑️ Delete</button>
+        </div>
+
+        <div class="seats" data-crew-id="{{ crew.Crew_ID }}" data-boat-type="{{ crew.Boat_Type }}">
+          <!-- JS will add seat slots -->
+        </div>
+
+        <!-- Static view (optional, ok to keep) -->
         <div class="seats-static">
-          {% set seat_count = crew.Boat_Type[0]|int %}
+          {% set seat_count = (crew.Boat_Type|default('')|replace('O','')|replace('W','')|replace('+','')|replace('x',''))|int %}
           {% set has_cox = '+' in crew.Boat_Type %}
-  
           {% for i in range(1, seat_count + 1) %}
             {% set seat = seat_assignments[crew.Crew_ID][i|string] if seat_assignments.get(crew.Crew_ID) and seat_assignments[crew.Crew_ID].get(i|string) %}
-            <div class="seat-static">
-              <strong>{{ i }}:</strong>
-              {{ seat.Athlete_Name if seat else '—' }}
-            </div>
+            <div class="seat-static"><strong>{{ i }}:</strong> {{ seat.Athlete_Name if seat else '—' }}</div>
           {% endfor %}
-  
           {% if has_cox %}
             {% set cox = seat_assignments[crew.Crew_ID]['Cox'] if seat_assignments.get(crew.Crew_ID) and seat_assignments[crew.Crew_ID].get('Cox') %}
-            <div class="seat-static">
-              <strong>Cox:</strong>
-              {{ cox.Athlete_Name if cox else '—' }}
-            </div>
+            <div class="seat-static"><strong>Cox:</strong> {{ cox.Athlete_Name if cox else '—' }}</div>
           {% endif %}
         </div>
-    </div>
-  {% endfor %}
-  
+      </div>
+    {% endfor %}
+
     <div class="crew-column crew-add">
-  
       <form action="{{ url_for('lineups.add_crew', outing_id=outing_id) }}" method="post">
         <div class="crew-row">
           <input list="hull-options" name="Hull_Name" placeholder="Hull Name" required>
           <datalist id="hull-options">
-              {% for hull in available_hulls %}
-                  <option value="{{ hull.Hull_Name }}">
-              {% endfor %}
+            {% for hull in available_hulls %}
+              <option value="{{ hull.Hull_Name }}">
+            {% endfor %}
           </datalist>
         </div>
         <div class="crew-row">
@@ -219,364 +172,305 @@
         </div>
       </form>
     </div>
-</div>
-<!-- Load Socket.IO -->
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  </div>
 
-<script>
-const socket = io();  // ✅ Global socket for all events
+  <!-- Single Socket.IO include -->
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
-socket.on('connect', () => {
-  console.log('[SocketIO] Connected');
-  socket.emit('join_outing', { outing_id: {{ outing_id }} });
-});
+  <script>
+    // Data from server
+    const assignedSeats = {{ assigned_seats | tojson }};
+    const OUTING_ID = {{ outing_id }};
+    const CLUB = "{{ g.tenant_key }}";  // <— use tenant in join
 
-socket.on('crew_deleted', data => {
-  const crewCol = document.querySelector(`.crew-column[data-crew-id="${data.crew_id}"]`);
-  if (crewCol) {
-    crewCol.remove();
-  }
-});
-
-socket.on('seat_updated', data => {
-  const container = document.querySelector(`.seats[data-crew-id="${data.crew_id}"]`);
-  if (!container) return;
-  const slot = Array.from(container.children).find(div => div.dataset.seat == data.seat);
-  if (!slot) return;
-
-  slot.classList.add('filled');
-  slot.dataset.athleteId = data.athlete_id;
-  slot.innerHTML = `
-    <span class="seat-name">${data.athlete_name}</span>
-    <span class="remove-seat" title="Remove">✖</span>
-  `;
-
-  slot.querySelector('.remove-seat').addEventListener('click', () => {
-    socket.emit('remove_seat', {
-      outing_id: {{ outing_id }},
-      crew_id: data.crew_id,
-      seat: data.seat
+    const socket = io();
+    socket.on('connect', () => {
+      console.log('[SocketIO] Connected');
+      socket.emit('join_outing', { outing_id: OUTING_ID, club: CLUB });  // <— IMPORTANT
     });
-    unassignAthlete(data.athlete_id);
-    slot.innerText = data.seat === 'Cox' ? 'Cox' : '';
-    slot.classList.remove('filled');
-    delete slot.dataset.athleteId;
-  });
 
-  const elem = document.querySelector(`.athlete-name[data-athlete-id="${data.athlete_id}"]`);
-  if (elem) {
-    elem.style.opacity = 0.4;
-    elem.style.pointerEvents = 'none';
-  }
-});
+    socket.on('crew_deleted', data => {
+      const crewCol = document.querySelector(`.crew-column[data-crew-id="${data.crew_id}"]`);
+      if (crewCol) crewCol.remove();
+    });
 
-socket.on('seat_cleared', data => {
-  const container = document.querySelector(`.seats[data-crew-id="${data.crew_id}"]`);
-  if (!container) return;
-  const slot = Array.from(container.children).find(s => s.dataset.seat == data.seat);
-  if (slot) {
-    slot.innerText = slot.dataset.seat === 'Cox' ? 'Cox' : '';
-    slot.classList.remove('filled');
-    delete slot.dataset.athleteId;
-  }
-});
+    socket.on('seat_updated', data => {
+      const container = document.querySelector(`.seats[data-crew-id="${data.crew_id}"]`);
+      if (!container) return;
+      const slot = Array.from(container.children).find(div => String(div.dataset.seat) == String(data.seat));
+      if (!slot) return;
 
-socket.on('crew_field_updated', data => {
-  const input = document.querySelector(`.crew-edit[data-crew-id="${data.crew_id}"][data-field="${data.field}"]`);
-  if (input && document.activeElement !== input) {
-    input.value = data.value;  // avoid overwriting what someone is currently editing
-  }
-});
-
-
-document.addEventListener('DOMContentLoaded', () => {
-  const guestInput = document.getElementById('guest-input');
-  const guestList = document.getElementById('guest-list');
-
-  guestInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const name = guestInput.value.trim();
-      if (!name) return;
-
-      const guestDiv = document.createElement('div');
-      guestDiv.classList.add('athlete-name');
-      guestDiv.textContent = name;
-      guestDiv.draggable = true;
-      guestDiv.dataset.athleteId = '';  // blank ID
-      guestDiv.dataset.athleteName = name;
-      guestDiv.dataset.mw = '';  // optional
-
-      guestDiv.addEventListener('dragstart', e => {
-        e.dataTransfer.setData('athlete-id', '');
-        e.dataTransfer.setData('athlete-name', name);
-        e.dataTransfer.setData('athlete-mw', '');
+      slot.classList.add('filled');
+      slot.dataset.athleteId = data.athlete_id;
+      slot.innerHTML = `
+        <span class="seat-name">${data.athlete_name}</span>
+        <span class="remove-seat" title="Remove">✖</span>
+      `;
+      slot.querySelector('.remove-seat').addEventListener('click', () => {
+        socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: data.crew_id, seat: data.seat });
+        unassignAthlete(data.athlete_id);
+        slot.innerText = data.seat === 'Cox' ? 'Cox' : '';
+        slot.classList.remove('filled');
+        delete slot.dataset.athleteId;
       });
 
-      guestList.appendChild(guestDiv);
-      guestInput.value = '';
-    }
-  });
-
-
-  const assignedAthletes = new Set();
-
-  // Wire up delete buttons
-  document.querySelectorAll('.delete-crew-btn').forEach(button => {
-    button.addEventListener('click', () => {
-      const crewId = button.dataset.crewId;
-      socket.emit('delete_crew', {
-        crew_id: crewId,
-        outing_id: {{ outing_id }}
-      });
-    });
-  });
-
-  // Inline field edits (Hull_Name, Boat_Type, Crew_Name)
-  document.querySelectorAll('.crew-edit').forEach(input => {
-    input.addEventListener('change', () => {
-      const field = input.dataset.field;
-      const crewId = input.dataset.crewId;
-      const value = input.value;
-      socket.emit('crew_update', {
-        crew_id: crewId,
-        field: field,
-        value: value
-      });
-    });
-  });
-
-  // Auto-fill Boat_Type when Hull_Name is selected
-  const hullData = {
-    {% for hull in available_hulls %}
-      "{{ hull.Hull_Name | escape }}": "{{ hull.Boat_Type | escape }}"{% if not loop.last %},{% endif %}
-    {% endfor %}
-  };
-
-  const hullInput = document.querySelector('[name="Hull_Name"]');
-  const boatTypeInput = document.querySelector('[name="Boat_Type"]');
-  if (hullInput && boatTypeInput) {
-    hullInput.addEventListener('input', () => {
-      const name = hullInput.value.trim();
-      if (hullData[name]) {
-        boatTypeInput.value = 'O' + hullData[name];
+      const elem = document.querySelector(`.athlete-name[data-athlete-id="${data.athlete_id}"]`);
+      if (elem) {
+        elem.style.opacity = 0.4;
+        elem.style.pointerEvents = 'none';
       }
     });
-  }
 
-  // Add seat slots
-  document.querySelectorAll('.seats').forEach(container => {
-    const boatType = container.dataset.boatType || '';
-    const hasCox = boatType.includes('+');
-    const seatCount = parseInt(boatType[1]);
+    socket.on('crew_field_updated', data => {
+      const input = document.querySelector(`.crew-edit[data-crew-id="${data.crew_id}"][data-field="${data.field}"]`);
+      if (input && document.activeElement !== input) input.value = data.value;
+    });
 
-    for (let i = 1; i <= seatCount; i++) {
-      const slot = createSeatSlot(i, container);
-      container.appendChild(slot);
-    }
+    document.addEventListener('DOMContentLoaded', () => {
+      const guestInput = document.getElementById('guest-input');
+      const guestList = document.getElementById('guest-list');
 
-    if (hasCox) {
-      const coxSlot = createSeatSlot('Cox', container, true);
-      container.appendChild(coxSlot);
-    }
-  });
+      guestInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const name = guestInput.value.trim();
+          if (!name) return;
 
-  // Populate previously assigned seats
-  assignedSeats.forEach(seat => {
-    const container = document.querySelector(`.seats[data-crew-id="${seat.Crew_ID}"]`);
-    if (!container) return;
-    const slot = Array.from(container.children).find(s => s.dataset.seat == seat.Seat);
-    if (!slot) return;
+          const guestDiv = document.createElement('div');
+          guestDiv.classList.add('athlete-name');
+          guestDiv.textContent = name;
+          guestDiv.draggable = true;
+          guestDiv.dataset.athleteId = '';
+          guestDiv.dataset.athleteName = name;
+          guestDiv.dataset.mw = '';
 
-    slot.classList.add('filled');
-    slot.dataset.athleteId = seat.Athlete_ID;
-    slot.innerHTML = `
-      <span class="seat-name">${seat.Athlete_Name}</span>
-      <span class="remove-seat" title="Remove">✖</span>
-    `;
+          guestDiv.addEventListener('dragstart', e => {
+            e.dataTransfer.setData('athlete-id', '');
+            e.dataTransfer.setData('athlete-name', name);
+            e.dataTransfer.setData('athlete-mw', '');
+          });
 
-    slot.querySelector('.remove-seat').addEventListener('click', () => {
-      socket.emit('remove_seat', {
-        outing_id: {{ outing_id }},
-        crew_id: seat.Crew_ID,
-        seat: seat.Seat
+          guestList.appendChild(guestDiv);
+          guestInput.value = '';
+        }
       });
-      
-      unassignAthlete(seat.Athlete_ID);
-      slot.innerText = seat.Seat === 'Cox' ? 'Cox' : '';
-      slot.classList.remove('filled');
-      delete slot.dataset.athleteId;
-      updateBoatTypeGenderPrefix(crewId);
-    });
 
-    const elem = document.querySelector(`.athlete-name[data-athlete-id="${seat.Athlete_ID}"]`);
-    if (elem) {
-      elem.style.opacity = 0.4;
-      elem.style.pointerEvents = 'none';
-    }
-  });
+      // Delete crew buttons
+      document.querySelectorAll('.delete-crew-btn').forEach(button => {
+        button.addEventListener('click', () => {
+          const crewId = button.dataset.crewId;
+          socket.emit('delete_crew', { crew_id: crewId, outing_id: OUTING_ID });
+        });
+      });
 
-  // Drag-and-drop logic
-  document.querySelectorAll('.athlete-name').forEach(athlete => {
-    athlete.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('athlete-id', athlete.dataset.athleteId);
-      e.dataTransfer.setData('athlete-name', athlete.dataset.athleteName);
-      e.dataTransfer.setData('athlete-mw', athlete.dataset.mw);  
-    });
-  });
+      // Inline crew edits
+      document.querySelectorAll('.crew-edit').forEach(input => {
+        input.addEventListener('change', () => {
+          const payload = {
+            crew_id: input.dataset.crewId,
+            field: input.dataset.field,
+            value: input.value
+          };
+          socket.emit('crew_update', payload);
+        });
+      });
 
-  function updateBoatTypeGenderPrefix(crewId) {
-    const container = document.querySelector(`.seats[data-crew-id="${crewId}"]`);
-    const slots = container.querySelectorAll('.seat-slot');
-    const genders = [];
+      // Auto-fill Boat_Type when selecting a hull
+      const hullData = {
+        {% for hull in available_hulls %}
+          "{{ hull.Hull_Name | escape }}": "{{ hull.Boat_Type | escape }}"{% if not loop.last %},{% endif %}
+        {% endfor %}
+      };
+      const hullInput = document.querySelector('[name="Hull_Name"]');
+      const boatTypeInput = document.querySelector('[name="Boat_Type"]');
+      if (hullInput && boatTypeInput) {
+        hullInput.addEventListener('input', () => {
+          const name = hullInput.value.trim();
+          if (hullData[name]) boatTypeInput.value = 'O' + hullData[name];
+        });
+      }
 
-    slots.forEach(slot => {
-      const athleteId = slot.dataset.athleteId;
-      const seat = slot.dataset.seat;
+      // Build seat slots per crew robustly
+      document.querySelectorAll('.seats').forEach(container => {
+        const boatType = (container.dataset.boatType || '').toString();
+        const match = boatType.match(/\d+/);
+        const hasCox = (boatType || '').includes('+');
+        const m = (boatType || '').match(/\d+/);
+        const seatCount = m ? parseInt(m[0], 10) : 0;
 
-      if (athleteId && seat !== 'Cox') {
+
+        for (let i = 1; i <= seatCount; i++) {
+          const slot = createSeatSlot(i, container);
+          container.appendChild(slot);
+        }
+        if (hasCox) {
+          const coxSlot = createSeatSlot('Cox', container, true);
+          container.appendChild(coxSlot);
+        }
+      });
+
+      // Populate existing assignments
+      assignedSeats.forEach(seat => {
+        const container = document.querySelector(`.seats[data-crew-id="${seat.Crew_ID}"]`);
+        if (!container) return;
+        const slot = Array.from(container.children).find(s => String(s.dataset.seat) == String(seat.Seat));
+        if (!slot) return;
+
+        const crewId = seat.Crew_ID;  // <-- FIX: define crewId before use
+
+        slot.classList.add('filled');
+        slot.dataset.athleteId = seat.Athlete_ID;
+        slot.innerHTML = `
+          <span class="seat-name">${seat.Athlete_Name}</span>
+          <span class="remove-seat" title="Remove">✖</span>
+        `;
+        slot.querySelector('.remove-seat').addEventListener('click', () => {
+          socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat: seat.Seat });
+          unassignAthlete(seat.Athlete_ID);
+          slot.innerText = seat.Seat === 'Cox' ? 'Cox' : '';
+          slot.classList.remove('filled');
+          delete slot.dataset.athleteId;
+          updateBoatTypeGenderPrefix(crewId);
+        });
+
+        const elem = document.querySelector(`.athlete-name[data-athlete-id="${seat.Athlete_ID}"]`);
+        if (elem) {
+          elem.style.opacity = 0.4;
+          elem.style.pointerEvents = 'none';
+        }
+      });
+
+      // Drag & drop
+      document.querySelectorAll('.athlete-name').forEach(athlete => {
+        athlete.addEventListener('dragstart', e => {
+          e.dataTransfer.setData('athlete-id', athlete.dataset.athleteId);
+          e.dataTransfer.setData('athlete-name', athlete.dataset.athleteName);
+          e.dataTransfer.setData('athlete-mw', athlete.dataset.mw);
+        });
+      });
+
+      function updateBoatTypeGenderPrefix(crewId) {
+        const container = document.querySelector(`.seats[data-crew-id="${crewId}"]`);
+        if (!container) return;
+        const slots = container.querySelectorAll('.seat-slot');
+        const genders = [];
+        slots.forEach(slot => {
+          const athleteId = slot.dataset.athleteId;
+          const seat = slot.dataset.seat;
+          if (athleteId && seat !== 'Cox') {
+            const elem = document.querySelector(`.athlete-name[data-athlete-id="${athleteId}"]`);
+            if (elem) genders.push(elem.dataset.mw);
+          }
+        });
+        const input = document.querySelector(`.crew-edit[data-crew-id="${crewId}"][data-field="Boat_Type"]`);
+        if (!input) return;
+        const suffix = (input.value || '').replace(/^[OW]/, '');  // keep everything after leading O/W
+        const prefix = genders.length && genders.every(g => g === 'W') ? 'W' : 'O';
+        input.value = prefix + suffix;
+      }
+
+      function createSeatSlot(seat, container, isCox = false) {
+        const slot = document.createElement('div');
+        slot.classList.add('seat-slot');
+        slot.dataset.seat = seat;
+        slot.textContent = isCox ? 'Cox' : '';
+        addSeatListeners(slot, container);
+        return slot;
+      }
+
+      function addSeatListeners(slot, container) {
+        slot.addEventListener('dragover', e => e.preventDefault());
+        slot.addEventListener('drop', e => {
+          e.preventDefault();
+          const id = e.dataTransfer.getData('athlete-id');
+          const name = e.dataTransfer.getData('athlete-name');
+          const mw = e.dataTransfer.getData('athlete-mw');
+          const crewId = container.dataset.crewId;
+          const seat = slot.dataset.seat;
+
+          if (slot.dataset.athleteId) {
+            unassignAthlete(slot.dataset.athleteId);
+            socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat });
+          }
+
+          socket.emit('assign_seat', {
+            outing_id: OUTING_ID,
+            crew_id: crewId,
+            seat,
+            athlete_id: id,
+            athlete_name: name
+          });
+
+          slot.innerHTML = `
+            <span class="seat-name">${name}</span>
+            <span class="remove-seat" title="Remove">✖</span>
+          `;
+          slot.classList.add('filled');
+          slot.dataset.athleteId = id;
+
+          slot.querySelector('.remove-seat').addEventListener('click', () => {
+            socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat });
+            unassignAthlete(id);
+            slot.innerText = seat === 'Cox' ? 'Cox' : '';
+            slot.classList.remove('filled');
+            delete slot.dataset.athleteId;
+          });
+
+          const athleteElem = document.querySelector(`.athlete-name[data-athlete-id="${id}"]`);
+          if (!id && athleteElem) athleteElem.remove(); // guest
+          if (athleteElem) {
+            athleteElem.style.opacity = 0.4;
+            athleteElem.style.pointerEvents = 'none';
+          }
+
+          updateBoatTypeGenderPrefix(crewId);
+        });
+
+        slot.addEventListener('dblclick', () => {
+          const athleteId = slot.dataset.athleteId;
+          const crewId = container.dataset.crewId;
+          const seat = slot.dataset.seat;
+          if (athleteId) {
+            socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat });
+            unassignAthlete(athleteId);
+            slot.innerText = seat === 'Cox' ? 'Cox' : '';
+            slot.classList.remove('filled');
+            delete slot.dataset.athleteId;
+          }
+        });
+      }
+
+      function unassignAthlete(athleteId) {
         const elem = document.querySelector(`.athlete-name[data-athlete-id="${athleteId}"]`);
         if (elem) {
-          genders.push(elem.dataset.mw);
+          elem.style.opacity = 1;
+          elem.style.pointerEvents = 'auto';
         }
       }
     });
 
-    const boatTypeInput = document.querySelector(`.crew-edit[data-crew-id="${crewId}"][data-field="Boat_Type"]`);
-    if (!boatTypeInput) return;
+    // Clone modal helpers
+    function openCloneModal() { document.getElementById('cloneModal').style.display = 'block'; }
+    function closeCloneModal() { document.getElementById('cloneModal').style.display = 'none'; }
+    function confirmClone() { return confirm("Are you sure you want to delete all existing crews and clone this lineup?"); }
+  </script>
 
-    const original = boatTypeInput.value;
-    const suffix = original.slice(1); // keep existing e.g., "4+"
-    const prefix = genders.every(g => g === 'W') ? 'W' : 'O';
-
-    boatTypeInput.value = prefix + suffix;
-  }
-
-
-  function createSeatSlot(seat, container, isCox = false) {
-    const slot = document.createElement('div');
-    slot.classList.add('seat-slot');
-    slot.dataset.seat = seat;
-    slot.textContent = isCox ? 'Cox' : '';
-    addSeatListeners(slot, container);
-    return slot;
-  }
-
-  function addSeatListeners(slot, container) {
-    slot.addEventListener('dragover', e => e.preventDefault());
-    slot.addEventListener('drop', e => {
-      e.preventDefault();
-      const id = e.dataTransfer.getData('athlete-id');
-      const name = e.dataTransfer.getData('athlete-name');
-      const mw = e.dataTransfer.getData('athlete-mw');  
-      const crewId = container.dataset.crewId;
-      const seat = slot.dataset.seat;
-      
-
-      if (slot.dataset.athleteId) {
-        unassignAthlete(slot.dataset.athleteId);
-        socket.emit('remove_seat', { outing_id: {{ outing_id }}, crew_id: crewId, seat });
-      }
-
-      socket.emit('assign_seat', {
-        outing_id: {{ outing_id }},
-        crew_id: crewId,
-        seat,
-        athlete_id: id,
-        athlete_name: name
-      });
-
-      slot.innerHTML = `
-        <span class="seat-name">${name}</span>
-        <span class="remove-seat" title="Remove">✖</span>
-      `;
-      slot.classList.add('filled');
-      slot.dataset.athleteId = id;
-
-      slot.querySelector('.remove-seat').addEventListener('click', () => {
-        socket.emit('remove_seat', { outing_id: {{ outing_id }}, crew_id: crewId, seat });
-        unassignAthlete(id);
-        slot.innerText = seat === 'Cox' ? 'Cox' : '';
-        slot.classList.remove('filled');
-        delete slot.dataset.athleteId;
-      });
-
-      const athleteElem = document.querySelector(`.athlete-name[data-athlete-id="${id}"]`);
-
-      if (!id && athleteElem) {
-        // It's a guest — remove it from the guest list
-        athleteElem.remove();
-      }
-
-
-      if (athleteElem) {
-        athleteElem.style.opacity = 0.4;
-        athleteElem.style.pointerEvents = 'none';
-        assignedAthletes.add(id);
-      }
-      updateBoatTypeGenderPrefix(crewId);
-    });
-
-    slot.addEventListener('dblclick', () => {
-      const athleteId = slot.dataset.athleteId;
-      const crewId = container.dataset.crewId;
-      const seat = slot.dataset.seat;
-      if (athleteId) {
-        socket.emit('remove_seat', { outing_id: {{ outing_id }}, crew_id: crewId, seat });
-        unassignAthlete(athleteId);
-        slot.innerText = seat === 'Cox' ? 'Cox' : '';
-        slot.classList.remove('filled');
-        delete slot.dataset.athleteId;
-      }
-    });
-  }
-
-  function unassignAthlete(athleteId) {
-    const elem = document.querySelector(`.athlete-name[data-athlete-id="${athleteId}"]`);
-    if (elem) {
-      elem.style.opacity = 1;
-      elem.style.pointerEvents = 'auto';
-      assignedAthletes.delete(athleteId);
-    }
-  }
-});
-</script>
-
-<div id="cloneModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;">
-  <div style="background:white; width:400px; margin:100px auto; padding:20px; border-radius:6px;">
-    <h3>Clone a Previous Lineup</h3>
-    <p style="color: red; font-weight: bold;">
-      ⚠️ This will delete all current crews and seat assignments.
-    </p>
-    <form id="cloneForm" method="POST" action="{{ url_for('lineups.clone_lineup', outing_id=outing.Outing_ID) }}" onsubmit="return confirmClone()">
-      <select name="source_outing_id" required style="width:100%; margin-bottom: 10px;">
-        {% for recent in recent_outings %}
-          {% if recent.Outing_ID != outing.Outing_ID %}
-            <option value="{{ recent.Outing_ID }}">{{ recent.Outing_Date }} — {{ recent.Outing_Name }}</option>
-          {% endif %}
-        {% endfor %}
-      </select>
-      <button type="submit" class="btn">Clone</button>
-      <button type="button" onclick="closeCloneModal()" class="btn">Cancel</button>
-    </form>
+  <div id="cloneModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;">
+    <div style="background:white; width:400px; margin:100px auto; padding:20px; border-radius:6px;">
+      <h3>Clone a Previous Lineup</h3>
+      <p style="color: red; font-weight: bold;">⚠️ This will delete all current crews and seat assignments.</p>
+      <form id="cloneForm" method="POST" action="{{ url_for('lineups.clone_lineup', outing_id=outing.Outing_ID) }}" onsubmit="return confirmClone()">
+        <select name="source_outing_id" required style="width:100%; margin-bottom: 10px;">
+          {% for recent in recent_outings %}
+            {% if recent.Outing_ID != outing.Outing_ID %}
+              <option value="{{ recent.Outing_ID }}">{{ recent.Outing_Date }} — {{ recent.Outing_Name }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn">Clone</button>
+        <button type="button" onclick="closeCloneModal()" class="btn">Cancel</button>
+      </form>
+    </div>
   </div>
-</div>
-
-<script>
-  function openCloneModal() {
-    document.getElementById('cloneModal').style.display = 'block';
-  }
-
-  function closeCloneModal() {
-    document.getElementById('cloneModal').style.display = 'none';
-  }
-
-  function confirmClone() {
-    return confirm("Are you sure you want to delete all existing crews and clone this lineup?");
-  }
-</script>
-
-
 </body>
 </html>
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>

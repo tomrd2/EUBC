@@ -9,6 +9,8 @@ import boto3
 import dropbox
 import json, requests
 from dropbox.files import SharedLink, FileMetadata, FolderMetadata
+import process_fit_sessions
+
 
 import logging
 logging.getLogger().setLevel(logging.WARNING)
@@ -82,13 +84,16 @@ def walk_folder(dbx: dropbox.Dropbox, link_url: str, rel_path: str | None = None
                 yield entry, rel_path
 
 def already_in_s3(aid, filename, s3_keys):
-    return any(basename(key) == filename for key in s3_keys)
+    want = basename(filename).strip().lower()
+    return any(basename(key).strip().lower() == want for key in s3_keys)
 
 def process_athlete(dbx, s3, bucket: str, s3_prefix: str, aid: str, link: str, tenant_key: str) -> None:
     print(f"\n• Athlete {aid}")
     # NOTE: process_fit_sessions.iter_fit_keys_for_athlete must read from the correct S3 location.
     # If it’s tenant-aware, pass `tenant_key` into it. Otherwise keep as-is.
-    import process_fit_sessions
+
+    process_fit_sessions.configure_storage(bucket=bucket, prefix=s3_prefix, client=s3)
+
     s3_keys = list(process_fit_sessions.iter_fit_keys_for_athlete(aid))
     new_files = []
 

@@ -86,7 +86,7 @@
             <!-- Reset Password stays as its own POST form -->
             <form action="{{ url_for('athletes.reset_password', athlete_id=athlete.Athlete_ID) }}" method="post" style="display:inline;">
               <button class="btn" type="submit"
-                onclick="return confirm('Reset password for {{ athlete.Full_Name }} to {{ athlete.Initials.lower() }}_eubc?')">
+                onclick="return confirm('Reset password for {{ athlete.Full_Name }} and send email to {{ athlete.Email }} ?')">
                 Reset Password
               </button>
             </form>

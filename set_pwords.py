@@ -4,8 +4,8 @@ from werkzeug.security import generate_password_hash
 # DB config
 db_config = {
     'host': 'eubcdb-2.cp6ymm2sk6ub.eu-west-2.rds.amazonaws.com',
-    'user': 'admin',
-    'password': 'Flockhart',
+    'user': 'eubc_app',
+    'password': 'bX3bhbU6knI3Tin',
     'database': 'eubcdb',
     'cursorclass': pymysql.cursors.DictCursor
 }

@@ -49,15 +49,14 @@ def _tenant_exists(club):
 
 @app.url_value_preprocessor
 def pull_tenant(endpoint, values):
-    """
-    Extract the <club> path segment and stash it on g so db.py can use it.
-    Works for any route mounted under '/<club>'.
-    """
-    if values is None:
+    # Only do tenant plumbing for routes that have <club> in the URL
+    if not values or 'club' not in values:
         return
-    club = values.pop('club', None)
+
+    club = (values.pop('club') or '').strip().lower()
     if not _tenant_exists(club):
         abort(404, description="Unknown club")
+
     g.tenant_key = club
     g.tenant = app.config['TENANTS'][club]
 
@@ -118,6 +117,27 @@ def _unauth():
     # url_defaults will inject g.tenant_key automatically
     return redirect(url_for('core.login'))
 
+public_bp = Blueprint("public", __name__)
+
+@public_bp.route("/")
+def landing():
+    clubs = []
+    for key, cfg in app.config.get("TENANTS", {}).items():
+        display = cfg.get("display_name", key.upper())
+        logo    = cfg.get("logo", "Logo.png")
+        clubs.append({
+            "key": key,
+            "name": display,
+            "logo_url": url_for("club_static", club=key, filename=logo),
+            "login_url": url_for("core.login", club=key),
+        })
+    return render_template("landing.html", clubs=clubs)
+
+@public_bp.route("/privacy")
+def privacy():
+    # Use a global/static background (not tenant-specific) so it works publicly
+    return render_template("privacy.html")
+
 # ---------------------------
 # Core blueprint (auth + home)
 # ---------------------------
@@ -150,13 +170,6 @@ def login():
             conn.close()
     return render_template('login.html')
 
-@core_bp.route('/')
-def app_home():
-    return render_template('index.html')
-
-@core_bp.route('/privacy')
-def app_privacy():
-    return render_template('privacy.html')
 
 @core_bp.route('/menu')
 @login_required
@@ -171,15 +184,22 @@ def logout():
 
 @core_bp.before_app_request
 def require_login():
-    """
-    Protect everything except a small allowlist.
-    Endpoints are namespaced (e.g., 'core.login', 'core.app_home', ...).
-    """
     if request.endpoint is None:
         return
-    allowed = {'core.login', 'core.app_home', 'core.app_privacy', 'club_static'}  # club_static if you expose it via Flask
-    if request.endpoint not in allowed and not current_user.is_authenticated:
-        return redirect(url_for('core.login'))
+
+    # Allow requests that are not for a tenant route (i.e., no <club> in view args)
+    va = getattr(request, "view_args", None) or {}
+    if "club" not in va:
+        return  # public / non-tenant page (e.g., "/"), let it through
+
+    # Allow tenant login + tenant static without auth
+    if request.endpoint in {"core.login", "core.app_privacy", "club_static"}:
+        return
+
+    if not current_user.is_authenticated:
+        club = va.get("club")
+        return redirect(url_for("core.login", club=club))
+
     
 @core_bp.route('/change_password', methods=['GET', 'POST'])
 @login_required
@@ -248,6 +268,8 @@ def club_static(filename):  # ← remove `club` here
 # Register blueprints UNDER '/<club>'
 # (No changes inside the blueprints themselves.)
 # ---------------------------
+
+app.register_blueprint(public_bp)   # note: no url_prefix
 app.register_blueprint(core_bp,          url_prefix='/<club>')
 app.register_blueprint(athletes_bp,      url_prefix='/<club>')
 app.register_blueprint(hulls_bp,         url_prefix='/<club>')

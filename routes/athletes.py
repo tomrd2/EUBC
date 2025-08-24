@@ -1,11 +1,53 @@
 from flask import Blueprint, Flask, render_template, request, redirect, url_for, session, flash
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+import os, secrets, string, smtplib, ssl
+from email.message import EmailMessage
+from flask import current_app, g, abort
+
 import datetime
 import pymysql
 from db import get_db_connection
 
 athletes_bp = Blueprint('athletes', __name__)
+
+def _generate_temp_password(length: int = 12) -> str:
+    # at least one lower, one upper, one digit
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        pw = ''.join(secrets.choice(alphabet) for _ in range(length))
+        if any(c.islower() for c in pw) and any(c.isupper() for c in pw) and any(c.isdigit() for c in pw):
+            return pw
+
+def _send_mail(to_email: str, subject: str, text: str, html: str | None = None) -> None:
+    # Prefer tenant-specific mail config, fall back to env vars
+    tcfg = (current_app.config.get("TENANTS", {}).get(getattr(g, "tenant_key", ""), {}) or {})
+    m = tcfg.get("mail", {}) if isinstance(tcfg, dict) else {}
+
+    host = m.get("smtp_host", os.getenv("SMTP_HOST"))
+    port = int(m.get("smtp_port", os.getenv("SMTP_PORT", "587")))
+    user = m.get("smtp_user", os.getenv("SMTP_USER"))
+    pwd  = m.get("smtp_pass", os.getenv("SMTP_PASS"))
+    from_email = m.get("from_email", os.getenv("FROM_EMAIL", "no-reply@crewoptic.com"))
+    from_name  = m.get("from_name",  os.getenv("FROM_NAME",  "CrewOptic"))
+
+    if not all([host, port, user, pwd, from_email]):
+        raise RuntimeError("SMTP settings are missing for this tenant")
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = f"{from_name} <{from_email}>"
+    msg["To"] = to_email
+    msg.set_content(text)
+    if html:
+        msg.add_alternative(html, subtype="html")
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(host, port) as s:
+        s.starttls(context=context)
+        s.login(user, pwd)
+        s.send_message(msg)
+
 
 # Athletes Page
 @athletes_bp.route('/athletes')
@@ -73,32 +115,65 @@ def edit_athlete(athlete_id):
 @athletes_bp.route('/reset_password/<int:athlete_id>', methods=['POST'])
 @login_required
 def reset_password(athlete_id):
+    if not getattr(current_user, "coach", False):
+        abort(403)
+
+    # Get athlete + email
     conn = get_db_connection()
-    with conn.cursor() as cursor:
-        # Get all athletes who don't yet have a password
-        cursor.execute("SELECT Athlete_ID, Initials FROM Athletes")
-        athletes = cursor.fetchall()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT Athlete_ID, Full_Name, Email FROM Athletes WHERE Athlete_ID=%s", (athlete_id,))
+            athlete = cur.fetchone()
+            if not athlete:
+                flash("Athlete not found.", "error")
+                return redirect(url_for('athletes.athletes'))
 
-        for athlete in athletes:
-            if athlete_id == athlete['Athlete_ID']:
-                initials = athlete['Initials']
+            full_name = athlete["Full_Name"] if isinstance(athlete, dict) else athlete[1]
+            email     = athlete["Email"]     if isinstance(athlete, dict) else athlete[2]
+            if not email:
+                flash("No email on file for this athlete.", "error")
+                return redirect(url_for('athletes.athletes'))
 
-                # You can choose your default password pattern here
-                default_password = f"{initials.lower()}_eubc"  # e.g., "jd_123"
-                hashed = generate_password_hash(default_password)
+            # Generate + save new password (hashed)
+            new_pw  = _generate_temp_password(12)
+            hashed  = generate_password_hash(new_pw)
+            #cur.execute("UPDATE Athletes SET Password_Hash=%s WHERE Athlete_ID=%s", (hashed, athlete_id))
+            #conn.commit()
+    finally:
+        conn.close()
 
-                # Update database with the hashed password
-                cursor.execute(
-                    "UPDATE Athletes SET Password_Hash = %s WHERE Athlete_ID = %s",
-                    (hashed, athlete_id)
-                )
-                print(f"Set password for Athlete_ID {athlete_id} to '{default_password}'")
+    # Build login link for this tenant (ProxyFix is already set up)
+    login_url = url_for('core.login', _external=True)
+    club_name = (getattr(g, "tenant", {}) or {}).get("display_name", getattr(g, "tenant_key", "your club")).upper()
 
-        conn.commit()
-    conn.close()
+    text = f"""Hi {full_name},
 
-    flash(f"Password for athlete {athlete_id} reset to default.", "success")
-    return redirect(url_for('athletes.athletes')) 
+A new password has been set for your CrewOptic account ({club_name}).
+
+Temporary password: {new_pw}
+
+Sign in here: {login_url}
+
+For your security, please log in and change your password immediately (Menu → Change Password).
+If you didn’t request this, please contact your coach.
+"""
+    html = f"""<p>Hi {full_name},</p>
+<p>A new password has been set for your CrewOptic account (<strong>{club_name}</strong>).</p>
+<p><strong>Temporary password:</strong> <code>{new_pw}</code></p>
+<p>Sign in here: <a href="{login_url}">{login_url}</a></p>
+<p>For your security, please log in and change your password immediately (Menu → <em>Change Password</em>).</p>
+<p>If you didn’t request this, please contact your coach.</p>
+"""
+
+    try:
+        _send_mail(email, f"{club_name} – Your new CrewOptic password", text, html)
+        flash(f"Password reset. Email sent to {email}.", "success")
+    except Exception as e:
+        # Password is already reset; surface email issue to coach
+        flash(f"Password reset, but email failed: {e}", "error")
+
+    return redirect(url_for('athletes.athletes'))
+
 
 def _none_if_empty(v):
     v = v.strip() if isinstance(v, str) else v

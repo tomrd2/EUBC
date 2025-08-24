@@ -14,7 +14,7 @@
 
     body {
       font-family: Arial, sans-serif;
-      background-image: url('{{ url_for("club_static", filename="background.jpg") }}');
+      background-image: url('{{ url_for("static", filename="background.jpg") }}');
       background-size: cover;
       background-attachment: fixed;
       background-position: center;
@@ -57,11 +57,11 @@
 </head>
 <body>
 
-  <a href="{{ url_for('app_home') }}" class="login-link">Back</a>
+  <a href="{{ url_for('public.landing') }}" class="login-link">Back</a>
 
 <div class="content">
     <h1>Privacy Statement for CrewOptic</h1>
-  <p><strong>Effective Date:</strong> [Insert Date]</p>
+  <p><strong>Effective Date:</strong> 01-Aug-2025</p>
 
   <p>At <strong>CrewOptic</strong>, we take your privacy seriously. This privacy statement explains how we collect, use, and protect your personal data when you use our application.</p>
 

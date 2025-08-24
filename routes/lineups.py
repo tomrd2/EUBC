@@ -1,10 +1,19 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, Response
 from flask_login import login_required, current_user
-from db import get_db_connection
+from db import get_db_connection, tenant_context
 from sockets import socketio  # ✅ Import the initialized socketio instance
 from flask_socketio import join_room, emit
+from flask import g, current_app
 
 lineups_bp = Blueprint('lineups', __name__)
+
+def outing_room(outing_id: int) -> str:
+    # Try user → g → request args; fall back to 'default'
+    tenant = getattr(current_user, "tenant_key", None) \
+          or getattr(g, "tenant_key", None) \
+          or ((request.view_args or {}).get("club") if hasattr(request, "view_args") else None)
+    return f"outing_{tenant or 'default'}_{outing_id}"
+
 
 @lineups_bp.route('/lineups/<int:outing_id>')
 @login_required
@@ -79,41 +88,45 @@ def lineup_view(outing_id):
             crew['Hull_Name'] = crew['Crew_Hull_Name'] or crew['Hulls_Hull_Name']
             crew['Boat_Type'] = crew['Crew_Boat_Type'] or crew['Hulls_Boat_Type']
 
-    with conn.cursor() as cursor:
-        cursor.execute("""
-            SELECT Hull_ID, Hull_Name, Boat_Type 
-            FROM Hulls 
-            WHERE Hull_ID NOT IN (
-                SELECT DISTINCT Hull_ID FROM Crews WHERE Outing_ID = %s AND Hull_ID IS NOT NULL
-            )
-            ORDER BY Boat_Type DESC
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT Hull_ID, Hull_Name, Boat_Type 
+                FROM Hulls 
+                WHERE Hull_ID NOT IN (
+                    SELECT DISTINCT Hull_ID FROM Crews WHERE Outing_ID = %s AND Hull_ID IS NOT NULL
+                )
+                ORDER BY Boat_Type DESC
             """, (outing_id,))
-        available_hulls = cursor.fetchall()
+            available_hulls = cursor.fetchall()
 
         with conn.cursor() as cursor:
-
             cursor.execute("""
-            SELECT s.Crew_ID, s.Seat, s.Athlete_ID, s.Athlete_Name
-            FROM Seats s
-            JOIN Crews c ON s.Crew_ID = c.Crew_ID
-            WHERE c.Outing_ID = %s
+                SELECT s.Crew_ID, s.Seat, s.Athlete_ID, s.Athlete_Name
+                FROM Seats s
+                JOIN Crews c ON s.Crew_ID = c.Crew_ID
+                WHERE c.Outing_ID = %s
+                ORDER BY s.Crew_ID, s.Seat
             """, (outing_id,))
-        assigned_seats = cursor.fetchall()
+            assigned_seats = cursor.fetchall()
 
         from collections import defaultdict
 
         with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM Seats")
+            cursor.execute("""
+                SELECT s.*
+                FROM Seats s
+                JOIN Crews c ON s.Crew_ID = c.Crew_ID
+                WHERE c.Outing_ID = %s
+            """, (outing_id,))
             seats_raw = cursor.fetchall()
 
-            seat_assignments = defaultdict(dict)
-            for seat in seats_raw:
-                crew_id = seat['Crew_ID']
-                seat_number = seat['Seat']
-                seat_assignments[crew_id][str(seat_number)] = seat
+        seat_assignments = defaultdict(dict)
+        for seat in seats_raw:
+            crew_id = seat['Crew_ID']
+            seat_number = str(seat['Seat'])
+            seat_assignments[crew_id][seat_number] = seat
 
-        with conn.cursor() as cursor:     
-            # Get recent outings (last 30 days) excluding current outing
+        with conn.cursor() as cursor:
             cursor.execute("""
                 SELECT Outing_ID, Outing_Date, Outing_Name
                 FROM Outings
@@ -175,20 +188,21 @@ def add_crew(outing_id):
 
 @socketio.on('delete_crew')
 def handle_delete_crew(data):
-    crew_id = data.get('crew_id')
+    if not current_user.is_authenticated:
+        return
+    crew_id   = data.get('crew_id')
     outing_id = data.get('outing_id')
-
     if not crew_id:
         return
+    with tenant_context(current_app, current_user.tenant_key):
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM Seats WHERE Crew_ID = %s", (crew_id,))
+            cursor.execute("DELETE FROM Crews WHERE Crew_ID = %s", (crew_id,))
+            conn.commit()
+        conn.close()
+    emit('crew_deleted', {'crew_id': crew_id}, room=outing_room(outing_id))
 
-    conn = get_db_connection()
-    with conn.cursor() as cursor:
-        cursor.execute("DELETE FROM Seats WHERE Crew_ID = %s", (crew_id,))
-        cursor.execute("DELETE FROM Crews WHERE Crew_ID = %s", (crew_id,))
-        conn.commit()
-    conn.close()
-
-    emit('crew_deleted', {'crew_id': crew_id}, room=f'outing_{outing_id}')
 
 @lineups_bp.route('/publish_lineup/<int:outing_id>', methods=['POST'])
 @login_required
@@ -206,69 +220,62 @@ def publish_lineup(outing_id):
 
 @socketio.on('crew_update')
 def handle_crew_update(data):
-    crew_id = data['crew_id']
-    field = data['field']
-    value = data['value']
-
-    if field not in ['Hull_Name', 'Boat_Type', 'Crew_Name']:
-        print("❌ Invalid field:", field)
+    if not current_user.is_authenticated:
         return
-
-    conn = get_db_connection()
-    with conn.cursor() as cursor:
-        if field == 'Hull_Name':
-            # Look up Hull_ID from Hulls table
-            cursor.execute("SELECT Hull_ID FROM Hulls WHERE Hull_Name = %s", (value,))
-            hull = cursor.fetchone()
-
-            if hull:
-                hull_id = hull['Hull_ID']
-                cursor.execute("""
-                    UPDATE Crews SET Hull_Name = %s, Hull_ID = %s WHERE Crew_ID = %s
-                """, (value, hull_id, crew_id))
-                print(f"✅ Updated Hull_Name to '{value}' and Hull_ID to {hull_id} for Crew_ID {crew_id}")
+    crew_id = data['crew_id']; field = data['field']; value = data['value']
+    if field not in ['Hull_Name', 'Boat_Type', 'Crew_Name']:
+        return
+    with tenant_context(current_app, current_user.tenant_key):
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            if field == 'Hull_Name':
+                cursor.execute("SELECT Hull_ID FROM Hulls WHERE Hull_Name = %s", (value,))
+                hull = cursor.fetchone()
+                if hull:
+                    cursor.execute("UPDATE Crews SET Hull_Name=%s, Hull_ID=%s WHERE Crew_ID=%s",
+                                   (value, hull['Hull_ID'], crew_id))
+                else:
+                    cursor.execute("UPDATE Crews SET Hull_Name=%s, Hull_ID=NULL WHERE Crew_ID=%s",
+                                   (value, crew_id))
             else:
-                cursor.execute("""
-                    UPDATE Crews SET Hull_Name = %s, Hull_ID = NULL WHERE Crew_ID = %s
-                """, (value, crew_id))
-                print(f"⚠️ Hull_Name '{value}' not found, set Hull_ID to NULL for Crew_ID {crew_id}")
-        else:
-            cursor.execute(f"""
-                UPDATE Crews SET {field} = %s WHERE Crew_ID = %s
-            """, (value, crew_id))
-            print(f"✅ Updated {field} to '{value}' for Crew_ID {crew_id}")
-
-        conn.commit()
-    conn.close()
-
-    # Broadcast update to all other clients
+                cursor.execute(f"UPDATE Crews SET {field}=%s WHERE Crew_ID=%s", (value, crew_id))
+            conn.commit()
+        conn.close()
     emit('crew_field_updated', data, broadcast=True)
+
 
 @socketio.on('assign_seat')
 def handle_assign_seat(data):
-    outing_id = data['outing_id']
-    crew_id = data['crew_id']
-    seat = data['seat']
-    athlete_id = data['athlete_id']
-    athlete_name = data['athlete_name']
+    if not current_user.is_authenticated:
+        return
+    outing_id   = data['outing_id']
+    crew_id     = data['crew_id']
+    seat        = data['seat']
+    athlete_id  = data['athlete_id']
+    athlete_name= data['athlete_name']
 
-    conn = get_db_connection()
-    with conn.cursor() as cursor:
-        # Remove any existing seat with same crew+seat
-        cursor.execute("""
-            DELETE FROM Seats WHERE Crew_ID = %s AND Seat = %s
-        """, (crew_id, seat))
+    # normalise seat to int if it looks numeric
+    try:
+        seat = int(seat)
+    except (TypeError, ValueError):
+        pass
 
-        # Insert new assignment
-        cursor.execute("""
-            INSERT INTO Seats (Crew_ID, Seat, Athlete_ID, Athlete_Name)
-            VALUES (%s, %s, %s, %s)
-        """, (crew_id, seat, athlete_id, athlete_name))
+    with tenant_context(current_app, current_user.tenant_key):
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            # robust upsert (assumes UNIQUE KEY (Crew_ID, Seat))
+            cursor.execute("""
+                INSERT INTO Seats (Crew_ID, Seat, Athlete_ID, Athlete_Name)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    Athlete_ID=VALUES(Athlete_ID),
+                    Athlete_Name=VALUES(Athlete_Name)
+            """, (crew_id, seat, athlete_id, athlete_name))
+            conn.commit()
+        conn.close()
 
-        conn.commit()
-    conn.close()
+    emit('seat_updated', data, room=outing_room(outing_id))
 
-    emit('seat_updated', data, room=f'outing_{outing_id}')
 
 @lineups_bp.route('/clone_lineup/<int:outing_id>', methods=['POST'])
 @login_required
@@ -327,11 +334,11 @@ def clone_lineup(outing_id):
     return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
 
 
-
 @socketio.on('join_outing')
 def handle_join_outing(data):
     outing_id = data.get('outing_id')
-    join_room(f'outing_{outing_id}')
+    join_room(outing_room(outing_id))
+
 
 
 
