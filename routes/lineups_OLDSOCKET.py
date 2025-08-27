@@ -1,7 +1,4 @@
-from flask import (
-    Blueprint, render_template, request, redirect, url_for,
-    session, Response, jsonify, current_app, g
-)
+from flask import Blueprint, render_template, request, redirect, url_for, session, Response
 from flask_login import login_required, current_user
 from db import get_db_connection, tenant_context
 from sockets import socketio  # ✅ Import the initialized socketio instance
@@ -191,6 +188,24 @@ def add_crew(outing_id):
 
     return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
 
+@socketio.on('delete_crew')
+def handle_delete_crew(data):
+    if not current_user.is_authenticated:
+        return
+    crew_id   = data.get('crew_id')
+    outing_id = data.get('outing_id')
+    if not crew_id:
+        return
+    with tenant_context(current_app, current_user.tenant_key):
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM Seats WHERE Crew_ID = %s", (crew_id,))
+            cursor.execute("DELETE FROM Crews WHERE Crew_ID = %s", (crew_id,))
+            conn.commit()
+        conn.close()
+    emit('crew_deleted', {'crew_id': crew_id}, room=outing_room(outing_id))
+
+
 @lineups_bp.route('/publish_lineup/<int:outing_id>', methods=['POST'])
 @login_required
 def publish_lineup(outing_id):
@@ -204,6 +219,103 @@ def publish_lineup(outing_id):
     conn.close()
 
     return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+
+@socketio.on('crew_update')
+def handle_crew_update(data):
+    if not current_user.is_authenticated:
+        return
+    crew_id = data['crew_id']; field = data['field']; value = data['value']
+    if field not in ['Hull_Name', 'Boat_Type', 'Crew_Name']:
+        return
+    with tenant_context(current_app, current_user.tenant_key):
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            if field == 'Hull_Name':
+                cursor.execute("SELECT Hull_ID FROM Hulls WHERE Hull_Name = %s", (value,))
+                hull = cursor.fetchone()
+                if hull:
+                    cursor.execute("UPDATE Crews SET Hull_Name=%s, Hull_ID=%s WHERE Crew_ID=%s",
+                                   (value, hull['Hull_ID'], crew_id))
+                else:
+                    cursor.execute("UPDATE Crews SET Hull_Name=%s, Hull_ID=NULL WHERE Crew_ID=%s",
+                                   (value, crew_id))
+            else:
+                cursor.execute(f"UPDATE Crews SET {field}=%s WHERE Crew_ID=%s", (value, crew_id))
+            conn.commit()
+        conn.close()
+    emit('crew_field_updated', data, broadcast=True)
+
+
+@socketio.on('assign_seat')
+def handle_assign_seat(data):
+    print("Running assign seat")
+    if not current_user.is_authenticated:
+        return
+    outing_id   = data['outing_id']
+    crew_id     = int(data['crew_id'])
+    seat        = data['seat']
+    athlete_id  = (int(data['athlete_id']) if str(data['athlete_id']).isdigit() else None)
+    athlete_name= data['athlete_name']
+
+    # keep 'Cox' as-is, convert numeric seat to int
+    try:
+        seat = int(seat)
+    except (TypeError, ValueError):
+        pass
+
+    with tenant_context(current_app, current_user.tenant_key):
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO Seats (Crew_ID, Seat, Athlete_ID, Athlete_Name)
+                    VALUES (%s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        Athlete_ID=VALUES(Athlete_ID),
+                        Athlete_Name=VALUES(Athlete_Name)
+                """, (crew_id, seat, athlete_id, athlete_name))
+            conn.commit()
+            log.info("Seats upsert ok: outing=%s crew=%s seat=%s athlete=%s '%s'",
+                     outing_id, crew_id, seat, athlete_id, athlete_name)
+        except Exception as e:
+            log.exception("DB error in assign_seat: %s", e)
+        finally:
+            conn.close()
+
+    emit('seat_updated', data, room=outing_room(outing_id))
+
+
+@socketio.on('remove_seat')
+def handle_remove_seat(data):
+    if not current_user.is_authenticated:
+        return
+    outing_id = data['outing_id']
+    crew_id   = int(data['crew_id'])
+    seat      = data['seat']
+    try:
+        seat = int(seat)
+    except (TypeError, ValueError):
+        pass
+
+    with tenant_context(current_app, current_user.tenant_key):
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM Seats WHERE Crew_ID=%s AND Seat=%s", (crew_id, seat))
+            conn.commit()
+            log.info("Seat removed: outing=%s crew=%s seat=%s", outing_id, crew_id, seat)
+        except Exception as e:
+            log.exception("DB error in remove_seat: %s", e)
+        finally:
+            conn.close()
+
+    emit('seat_updated', {
+        'crew_id': crew_id,
+        'seat': seat,
+        'athlete_id': None,
+        'athlete_name': ''
+    }, room=outing_room(outing_id))
+
 
 @lineups_bp.route('/clone_lineup/<int:outing_id>', methods=['POST'])
 @login_required
@@ -261,106 +373,13 @@ def clone_lineup(outing_id):
 
     return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
 
-@lineups_bp.post('/api/assign-seat')
-@login_required
-def api_assign_seat():
-    if not current_user.coach:
-        return jsonify(ok=False, error="forbidden"), 403
-    data = request.get_json(force=True) or {}
-    outing_id   = data.get('outing_id')
-    crew_id     = int(data.get('crew_id'))
-    seat        = str(data.get('seat'))         # keep as string (supports 'Cox')
-    athlete_id  = data.get('athlete_id')
-    athlete_id  = int(athlete_id) if (str(athlete_id).isdigit()) else None
-    athlete_name= data.get('athlete_name') or ''
 
-    with tenant_context(current_app, current_user.tenant_key):
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO Seats (Crew_ID, Seat, Athlete_ID, Athlete_Name)
-                    VALUES (%s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        Athlete_ID = VALUES(Athlete_ID),
-                        Athlete_Name = VALUES(Athlete_Name)
-                """, (crew_id, seat, athlete_id, athlete_name))
-            conn.commit()
-        finally:
-            conn.close()
-    return jsonify(ok=True)
+@socketio.on('join_outing')
+def handle_join_outing(data):
+    outing_id = data.get('outing_id')
+    join_room(outing_room(outing_id))
 
-@lineups_bp.post('/api/remove-seat')
-@login_required
-def api_remove_seat():
-    if not current_user.coach:
-        return jsonify(ok=False, error="forbidden"), 403
-    data = request.get_json(force=True) or {}
-    crew_id = int(data.get('crew_id'))
-    seat    = str(data.get('seat'))
 
-    with tenant_context(current_app, current_user.tenant_key):
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM Seats WHERE Crew_ID=%s AND Seat=%s", (crew_id, seat))
-            conn.commit()
-        finally:
-            conn.close()
-    return jsonify(ok=True)
-
-@lineups_bp.post('/api/update-crew-field')
-@login_required
-def api_update_crew_field():
-    if not current_user.coach:
-        return jsonify(ok=False, error="forbidden"), 403
-    data = request.get_json(force=True) or {}
-    crew_id = int(data.get('crew_id'))
-    field   = data.get('field')
-    value   = data.get('value') or ''
-
-    if field not in ('Hull_Name', 'Boat_Type', 'Crew_Name'):
-        return jsonify(ok=False, error="bad field"), 400
-
-    with tenant_context(current_app, current_user.tenant_key):
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                if field == 'Hull_Name':
-                    # optional: set Hull_ID if name matches
-                    cur.execute("SELECT Hull_ID FROM Hulls WHERE Hull_Name=%s", (value,))
-                    hull = cur.fetchone()
-                    if hull:
-                        cur.execute("UPDATE Crews SET Hull_Name=%s, Hull_ID=%s WHERE Crew_ID=%s",
-                                    (value, hull['Hull_ID'], crew_id))
-                    else:
-                        cur.execute("UPDATE Crews SET Hull_Name=%s, Hull_ID=NULL WHERE Crew_ID=%s",
-                                    (value, crew_id))
-                else:
-                    cur.execute(f"UPDATE Crews SET {field}=%s WHERE Crew_ID=%s", (value, crew_id))
-            conn.commit()
-        finally:
-            conn.close()
-    return jsonify(ok=True)
-
-@lineups_bp.post('/api/delete-crew')
-@login_required
-def api_delete_crew():
-    if not current_user.coach:
-        return jsonify(ok=False, error="forbidden"), 403
-    data = request.get_json(force=True) or {}
-    crew_id = int(data.get('crew_id'))
-
-    with tenant_context(current_app, current_user.tenant_key):
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM Seats WHERE Crew_ID=%s", (crew_id,))
-                cur.execute("DELETE FROM Crews WHERE Crew_ID=%s", (crew_id,))
-            conn.commit()
-        finally:
-            conn.close()
-    return jsonify(ok=True)
 
 
 

@@ -135,19 +135,6 @@
           <!-- JS will add seat slots -->
         </div>
 
-        <!-- Static view (optional, ok to keep) -->
-        <div class="seats-static">
-          {% set seat_count = (crew.Boat_Type|default('')|replace('O','')|replace('W','')|replace('+','')|replace('x',''))|int %}
-          {% set has_cox = '+' in crew.Boat_Type %}
-          {% for i in range(1, seat_count + 1) %}
-            {% set seat = seat_assignments[crew.Crew_ID][i|string] if seat_assignments.get(crew.Crew_ID) and seat_assignments[crew.Crew_ID].get(i|string) %}
-            <div class="seat-static"><strong>{{ i }}:</strong> {{ seat.Athlete_Name if seat else '—' }}</div>
-          {% endfor %}
-          {% if has_cox %}
-            {% set cox = seat_assignments[crew.Crew_ID]['Cox'] if seat_assignments.get(crew.Crew_ID) and seat_assignments[crew.Crew_ID].get('Cox') %}
-            <div class="seat-static"><strong>Cox:</strong> {{ cox.Athlete_Name if cox else '—' }}</div>
-          {% endif %}
-        </div>
       </div>
     {% endfor %}
 
@@ -177,283 +164,162 @@
   <!-- Single Socket.IO include -->
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
-  <script>
-    // Data from server
-    const assignedSeats = {{ assigned_seats | tojson }};
-    const OUTING_ID = {{ outing_id }};
-    const CLUB = "{{ g.tenant_key }}";  // <— use tenant in join
+ <script>
+  const OUTING_ID = {{ outing_id }};
+  const API = {
+    assign: "{{ url_for('lineups.api_assign_seat') }}",
+    remove: "{{ url_for('lineups.api_remove_seat') }}",
+    updateCrew: "{{ url_for('lineups.api_update_crew_field') }}",
+    deleteCrew: "{{ url_for('lineups.api_delete_crew') }}"
+  };
 
-    const socket = io();
-    socket.on('connect', () => {
-      console.log('[SocketIO] Connected');
-      socket.emit('join_outing', { outing_id: OUTING_ID, club: CLUB });  // <— IMPORTANT
+  function postJSON(url, payload) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Build seat slots for each crew
+    document.querySelectorAll('.seats').forEach(container => {
+      const boatType = (container.dataset.boatType || '').toString();
+      const m = boatType.match(/\d+/);
+      const seatCount = m ? parseInt(m[0], 10) : 0;
+      const hasCox = boatType.includes('+');
+
+      for (let i = 1; i <= seatCount; i++) container.appendChild(createSeatSlot(i, container));
+      if (hasCox) container.appendChild(createSeatSlot('Cox', container, true));
     });
 
-    socket.on('crew_deleted', data => {
-      const crewCol = document.querySelector(`.crew-column[data-crew-id="${data.crew_id}"]`);
-      if (crewCol) crewCol.remove();
-    });
-
-    socket.on('seat_updated', data => {
-      const container = document.querySelector(`.seats[data-crew-id="${data.crew_id}"]`);
+    // Populate assigned seats from server
+    ({{ assigned_seats | tojson }}).forEach(seat => {
+      const container = document.querySelector(`.seats[data-crew-id="${seat.Crew_ID}"]`);
       if (!container) return;
-      const slot = Array.from(container.children).find(div => String(div.dataset.seat) == String(data.seat));
+      const slot = Array.from(container.children).find(s => String(s.dataset.seat) === String(seat.Seat));
       if (!slot) return;
-
-      slot.classList.add('filled');
-      slot.dataset.athleteId = data.athlete_id;
-      slot.innerHTML = `
-        <span class="seat-name">${data.athlete_name}</span>
-        <span class="remove-seat" title="Remove">✖</span>
-      `;
-      slot.querySelector('.remove-seat').addEventListener('click', () => {
-        socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: data.crew_id, seat: data.seat });
-        unassignAthlete(data.athlete_id);
-        slot.innerText = data.seat === 'Cox' ? 'Cox' : '';
-        slot.classList.remove('filled');
-        delete slot.dataset.athleteId;
-      });
-
-      const elem = document.querySelector(`.athlete-name[data-athlete-id="${data.athlete_id}"]`);
-      if (elem) {
-        elem.style.opacity = 0.4;
-        elem.style.pointerEvents = 'none';
-      }
+      fillSlot(slot, seat.Athlete_ID, seat.Athlete_Name);
+      // dim athlete in list
+      const elem = document.querySelector(`.athlete-name[data-athlete-id="${seat.Athlete_ID}"]`);
+      if (elem) { elem.style.opacity = 0.4; elem.style.pointerEvents = 'none'; }
     });
 
-    socket.on('crew_field_updated', data => {
-      const input = document.querySelector(`.crew-edit[data-crew-id="${data.crew_id}"][data-field="${data.field}"]`);
-      if (input && document.activeElement !== input) input.value = data.value;
+    // Drag sources
+    document.querySelectorAll('.athlete-name').forEach(el => {
+      el.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('athlete-id', el.dataset.athleteId);
+        e.dataTransfer.setData('athlete-name', el.dataset.athleteName);
+        e.dataTransfer.setData('athlete-mw', el.dataset.mw || '');
+      });
     });
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const guestInput = document.getElementById('guest-input');
-      const guestList = document.getElementById('guest-list');
-
-      guestInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const name = guestInput.value.trim();
-          if (!name) return;
-
-          const guestDiv = document.createElement('div');
-          guestDiv.classList.add('athlete-name');
-          guestDiv.textContent = name;
-          guestDiv.draggable = true;
-          guestDiv.dataset.athleteId = '';
-          guestDiv.dataset.athleteName = name;
-          guestDiv.dataset.mw = '';
-
-          guestDiv.addEventListener('dragstart', e => {
-            e.dataTransfer.setData('athlete-id', '');
-            e.dataTransfer.setData('athlete-name', name);
-            e.dataTransfer.setData('athlete-mw', '');
-          });
-
-          guestList.appendChild(guestDiv);
-          guestInput.value = '';
+    // Delete crew
+    document.querySelectorAll('.delete-crew-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const crewId = parseInt(btn.dataset.crewId, 10);
+        if (!confirm('Delete this crew?')) return;
+        const res = await postJSON(API.deleteCrew, { crew_id: crewId });
+        if (res.ok) {
+          const col = document.querySelector(`.crew-column[data-crew-id="${crewId}"]`);
+          if (col) col.remove();
+        } else {
+          alert('Delete failed');
         }
       });
-
-      // Delete crew buttons
-      document.querySelectorAll('.delete-crew-btn').forEach(button => {
-        button.addEventListener('click', () => {
-          const crewId = button.dataset.crewId;
-          socket.emit('delete_crew', { crew_id: crewId, outing_id: OUTING_ID });
-        });
-      });
-
-      // Inline crew edits
-      document.querySelectorAll('.crew-edit').forEach(input => {
-        input.addEventListener('change', () => {
-          const payload = {
-            crew_id: input.dataset.crewId,
-            field: input.dataset.field,
-            value: input.value
-          };
-          socket.emit('crew_update', payload);
-        });
-      });
-
-      // Auto-fill Boat_Type when selecting a hull
-      const hullData = {
-        {% for hull in available_hulls %}
-          "{{ hull.Hull_Name | escape }}": "{{ hull.Boat_Type | escape }}"{% if not loop.last %},{% endif %}
-        {% endfor %}
-      };
-      const hullInput = document.querySelector('[name="Hull_Name"]');
-      const boatTypeInput = document.querySelector('[name="Boat_Type"]');
-      if (hullInput && boatTypeInput) {
-        hullInput.addEventListener('input', () => {
-          const name = hullInput.value.trim();
-          if (hullData[name]) boatTypeInput.value = 'O' + hullData[name];
-        });
-      }
-
-      // Build seat slots per crew robustly
-      document.querySelectorAll('.seats').forEach(container => {
-        const boatType = (container.dataset.boatType || '').toString();
-        const match = boatType.match(/\d+/);
-        const hasCox = (boatType || '').includes('+');
-        const m = (boatType || '').match(/\d+/);
-        const seatCount = m ? parseInt(m[0], 10) : 0;
-
-
-        for (let i = 1; i <= seatCount; i++) {
-          const slot = createSeatSlot(i, container);
-          container.appendChild(slot);
-        }
-        if (hasCox) {
-          const coxSlot = createSeatSlot('Cox', container, true);
-          container.appendChild(coxSlot);
-        }
-      });
-
-      // Populate existing assignments
-      assignedSeats.forEach(seat => {
-        const container = document.querySelector(`.seats[data-crew-id="${seat.Crew_ID}"]`);
-        if (!container) return;
-        const slot = Array.from(container.children).find(s => String(s.dataset.seat) == String(seat.Seat));
-        if (!slot) return;
-
-        const crewId = seat.Crew_ID;  // <-- FIX: define crewId before use
-
-        slot.classList.add('filled');
-        slot.dataset.athleteId = seat.Athlete_ID;
-        slot.innerHTML = `
-          <span class="seat-name">${seat.Athlete_Name}</span>
-          <span class="remove-seat" title="Remove">✖</span>
-        `;
-        slot.querySelector('.remove-seat').addEventListener('click', () => {
-          socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat: seat.Seat });
-          unassignAthlete(seat.Athlete_ID);
-          slot.innerText = seat.Seat === 'Cox' ? 'Cox' : '';
-          slot.classList.remove('filled');
-          delete slot.dataset.athleteId;
-          updateBoatTypeGenderPrefix(crewId);
-        });
-
-        const elem = document.querySelector(`.athlete-name[data-athlete-id="${seat.Athlete_ID}"]`);
-        if (elem) {
-          elem.style.opacity = 0.4;
-          elem.style.pointerEvents = 'none';
-        }
-      });
-
-      // Drag & drop
-      document.querySelectorAll('.athlete-name').forEach(athlete => {
-        athlete.addEventListener('dragstart', e => {
-          e.dataTransfer.setData('athlete-id', athlete.dataset.athleteId);
-          e.dataTransfer.setData('athlete-name', athlete.dataset.athleteName);
-          e.dataTransfer.setData('athlete-mw', athlete.dataset.mw);
-        });
-      });
-
-      function updateBoatTypeGenderPrefix(crewId) {
-        const container = document.querySelector(`.seats[data-crew-id="${crewId}"]`);
-        if (!container) return;
-        const slots = container.querySelectorAll('.seat-slot');
-        const genders = [];
-        slots.forEach(slot => {
-          const athleteId = slot.dataset.athleteId;
-          const seat = slot.dataset.seat;
-          if (athleteId && seat !== 'Cox') {
-            const elem = document.querySelector(`.athlete-name[data-athlete-id="${athleteId}"]`);
-            if (elem) genders.push(elem.dataset.mw);
-          }
-        });
-        const input = document.querySelector(`.crew-edit[data-crew-id="${crewId}"][data-field="Boat_Type"]`);
-        if (!input) return;
-        const suffix = (input.value || '').replace(/^[OW]/, '');  // keep everything after leading O/W
-        const prefix = genders.length && genders.every(g => g === 'W') ? 'W' : 'O';
-        input.value = prefix + suffix;
-      }
-
-      function createSeatSlot(seat, container, isCox = false) {
-        const slot = document.createElement('div');
-        slot.classList.add('seat-slot');
-        slot.dataset.seat = seat;
-        slot.textContent = isCox ? 'Cox' : '';
-        addSeatListeners(slot, container);
-        return slot;
-      }
-
-      function addSeatListeners(slot, container) {
-        slot.addEventListener('dragover', e => e.preventDefault());
-        slot.addEventListener('drop', e => {
-          e.preventDefault();
-          const id = e.dataTransfer.getData('athlete-id');
-          const name = e.dataTransfer.getData('athlete-name');
-          const mw = e.dataTransfer.getData('athlete-mw');
-          const crewId = container.dataset.crewId;
-          const seat = slot.dataset.seat;
-
-          if (slot.dataset.athleteId) {
-            unassignAthlete(slot.dataset.athleteId);
-            socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat });
-          }
-
-          socket.emit('assign_seat', {
-            outing_id: OUTING_ID,
-            crew_id: crewId,
-            seat,
-            athlete_id: id,
-            athlete_name: name
-          });
-
-          slot.innerHTML = `
-            <span class="seat-name">${name}</span>
-            <span class="remove-seat" title="Remove">✖</span>
-          `;
-          slot.classList.add('filled');
-          slot.dataset.athleteId = id;
-
-          slot.querySelector('.remove-seat').addEventListener('click', () => {
-            socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat });
-            unassignAthlete(id);
-            slot.innerText = seat === 'Cox' ? 'Cox' : '';
-            slot.classList.remove('filled');
-            delete slot.dataset.athleteId;
-          });
-
-          const athleteElem = document.querySelector(`.athlete-name[data-athlete-id="${id}"]`);
-          if (!id && athleteElem) athleteElem.remove(); // guest
-          if (athleteElem) {
-            athleteElem.style.opacity = 0.4;
-            athleteElem.style.pointerEvents = 'none';
-          }
-
-          updateBoatTypeGenderPrefix(crewId);
-        });
-
-        slot.addEventListener('dblclick', () => {
-          const athleteId = slot.dataset.athleteId;
-          const crewId = container.dataset.crewId;
-          const seat = slot.dataset.seat;
-          if (athleteId) {
-            socket.emit('remove_seat', { outing_id: OUTING_ID, crew_id: crewId, seat });
-            unassignAthlete(athleteId);
-            slot.innerText = seat === 'Cox' ? 'Cox' : '';
-            slot.classList.remove('filled');
-            delete slot.dataset.athleteId;
-          }
-        });
-      }
-
-      function unassignAthlete(athleteId) {
-        const elem = document.querySelector(`.athlete-name[data-athlete-id="${athleteId}"]`);
-        if (elem) {
-          elem.style.opacity = 1;
-          elem.style.pointerEvents = 'auto';
-        }
-      }
     });
 
-    // Clone modal helpers
-    function openCloneModal() { document.getElementById('cloneModal').style.display = 'block'; }
-    function closeCloneModal() { document.getElementById('cloneModal').style.display = 'none'; }
-    function confirmClone() { return confirm("Are you sure you want to delete all existing crews and clone this lineup?"); }
-  </script>
+    // Inline crew edits
+    document.querySelectorAll('.crew-edit').forEach(input => {
+      input.addEventListener('change', async () => {
+        const payload = { crew_id: parseInt(input.dataset.crewId, 10), field: input.dataset.field, value: input.value };
+        const res = await postJSON(API.updateCrew, payload);
+        if (!res.ok) alert('Update failed');
+      });
+    });
+
+    // Hull -> Boat_Type helper
+    const hullData = {
+      {% for hull in available_hulls %}
+        "{{ hull.Hull_Name | escape }}": "{{ hull.Boat_Type | escape }}"{% if not loop.last %},{% endif %}
+      {% endfor %}
+    };
+    const hullInput = document.querySelector('[name="Hull_Name"]');
+    const boatTypeInput = document.querySelector('[name="Boat_Type"]');
+    if (hullInput && boatTypeInput) {
+      hullInput.addEventListener('input', () => {
+        const name = hullInput.value.trim();
+        if (hullData[name]) boatTypeInput.value = 'O' + hullData[name];
+      });
+    }
+  });
+
+  function createSeatSlot(seat, container, isCox=false) {
+    const slot = document.createElement('div');
+    slot.className = 'seat-slot';
+    slot.dataset.seat = seat;
+    slot.textContent = isCox ? 'Cox' : '';
+    slot.addEventListener('dragover', e => e.preventDefault());
+    slot.addEventListener('drop', e => onDrop(e, container, slot));
+    slot.addEventListener('dblclick', () => removeFromSlot(container, slot));
+    return slot;
+  }
+
+  async function onDrop(e, container, slot) {
+    e.preventDefault();
+    const id   = e.dataTransfer.getData('athlete-id');  // '' for guests
+    const name = e.dataTransfer.getData('athlete-name');
+    const crewId = parseInt(container.dataset.crewId, 10);
+    const seat = String(slot.dataset.seat);
+
+    // remove existing assignment in this slot
+    if (slot.dataset.athleteId) await removeFromSlot(container, slot, /*silent*/true);
+
+    const res = await postJSON(API.assign, {
+      outing_id: OUTING_ID, crew_id: crewId, seat, athlete_id: id, athlete_name: name
+    });
+    if (!res.ok) { alert('Save failed'); return; }
+
+    fillSlot(slot, id, name);
+
+    // dim source athlete (if not guest)
+    const src = document.querySelector(`.athlete-name[data-athlete-id="${id}"]`);
+    if (src) { src.style.opacity = 0.4; src.style.pointerEvents = 'none'; }
+  }
+
+  function fillSlot(slot, athleteId, athleteName) {
+    slot.classList.add('filled');
+    slot.dataset.athleteId = athleteId || '';
+    slot.innerHTML = `
+      <span class="seat-name">${athleteName}</span>
+      <span class="remove-seat" title="Remove">✖</span>
+    `;
+    slot.querySelector('.remove-seat').addEventListener('click', () => {
+      const container = slot.closest('.seats');
+      removeFromSlot(container, slot);
+    });
+  }
+
+  async function removeFromSlot(container, slot, silent=false) {
+    const crewId = parseInt(container.dataset.crewId, 10);
+    const seat   = String(slot.dataset.seat);
+    const prevId = slot.dataset.athleteId;
+
+    const res = await postJSON(API.remove, { crew_id: crewId, seat });
+    if (!res.ok && !silent) { alert('Remove failed'); return; }
+
+    // clear UI
+    slot.classList.remove('filled');
+    slot.textContent = seat === 'Cox' ? 'Cox' : '';
+    delete slot.dataset.athleteId;
+
+    // re-enable athlete in list
+    if (prevId) {
+      const el = document.querySelector(`.athlete-name[data-athlete-id="${prevId}"]`);
+      if (el) { el.style.opacity = 1; el.style.pointerEvents = 'auto'; }
+    }
+  }
+</script>
 
   <div id="cloneModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;">
     <div style="background:white; width:400px; margin:100px auto; padding:20px; border-radius:6px;">
