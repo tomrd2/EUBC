@@ -189,7 +189,8 @@ def add_crew(outing_id):
         conn.commit()
     conn.close()
 
-    return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+    gender = request.form.get('gender')
+    return redirect(url_for('lineups.lineup_view', outing_id=outing_id, **({'gender': gender} if gender else {})))
 
 @lineups_bp.route('/publish_lineup/<int:outing_id>', methods=['POST'])
 @login_required
@@ -203,11 +204,13 @@ def publish_lineup(outing_id):
         conn.commit()
     conn.close()
 
-    return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+    gender = request.form.get('gender')
+    return redirect(url_for('lineups.lineup_view', outing_id=outing_id, **({'gender': gender} if gender else {})))
 
 @lineups_bp.route('/clone_lineup/<int:outing_id>', methods=['POST'])
 @login_required
 def clone_lineup(outing_id):
+    gender = request.form.get('gender')
     source_outing_id = request.form.get('source_outing_id')
 
     if not current_user.coach or not source_outing_id:
@@ -259,7 +262,7 @@ def clone_lineup(outing_id):
         conn.commit()
     conn.close()
 
-    return redirect(url_for('lineups.lineup_view', outing_id=outing_id))
+    return redirect(url_for('lineups.lineup_view', outing_id=outing_id, **({'gender': gender} if gender else {})))
 
 @lineups_bp.post('/api/assign-seat')
 @login_required

@@ -190,24 +190,51 @@ body {
     gap: 6px;
     margin-top: 10px;
   }
+
+  /* keep sizing inside the column */
+.crew-column, .seats, .seat-slot, .seat-name { box-sizing: border-box; }
+.crew-column { overflow: hidden; }
   
-  .seat-slot {
-    width: 100%;
-    height: 32px;
-    border: 2px dashed #0074D9;
-    border-radius: 4px;
-    text-align: center;
-    line-height: 30px;
-    background-color: #f0f8ff;
-    font-size: 14px;
-    color: #333;
-  }
-  
-  .seat-slot.filled {
-    border-style: solid;
-    background-color: #d6f0ff;
-    font-weight: bold;
-  }
+/* seat slot layout (replaces your current .seat-slot rule) */
+.seat-slot {
+  width: 100%;
+  height: 32px;
+  border: 2px dashed #0074D9;
+  border-radius: 4px;
+  background-color: #f0f8ff;
+  color: #333;
+  font-size: 14px;
+
+  display: flex;                 /* ← make it flex */
+  align-items: center;           /* vertical centering */
+  justify-content: space-between;
+  padding: 0 6px;                /* inner padding */
+  overflow: hidden;              /* contain contents */
+  text-align: left;              /* allow truncation on left-aligned text */
+  line-height: 1.2;              /* no fixed 30px line-height */
+}
+
+.seat-slot.filled {
+  border-style: solid;
+  background-color: #d6f0ff;
+  font-weight: bold;
+}
+
+/* truncate long names with ellipsis */
+.seat-slot .seat-name {
+  flex: 1 1 auto;
+  min-width: 0;                  /* critical for truncation in flex */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* keep the ✖ snug on the right */
+.remove-seat {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  cursor: pointer;
+}
   
   .athlete-name {
     cursor: grab;

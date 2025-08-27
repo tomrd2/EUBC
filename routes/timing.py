@@ -1,11 +1,21 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
-from flask_login import login_required
-from db import get_db_connection
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify,current_app
+from flask_login import login_required, current_user 
+from db import get_db_connection, tenant_context  
 from datetime import timedelta
 from flask_socketio import SocketIO, emit
 from sockets import socketio
+from urllib.parse import urlparse
 
 timing_bp = Blueprint('timing', __name__)
+
+def _club_from_referer() -> str | None:
+    ref = request.headers.get("Referer", "")
+    try:
+        path = urlparse(ref).path  # e.g. "/eubc/timing/511"
+        segs = [s for s in path.split("/") if s]
+        return segs[0] if segs else None
+    except Exception:
+        return None
 
 def time_to_seconds(t):
     if isinstance(t, timedelta):
@@ -211,22 +221,36 @@ def update_result():
 
 @socketio.on('result_update')
 def handle_result_update(data):
-    field = data.get('field')
-    value = data.get('value')
+    field    = data.get('field')
+    value    = data.get('value')
     piece_id = data.get('piece_id')
-    crew_id = data.get('crew_id')
+    crew_id  = data.get('crew_id')
 
     if not (field and piece_id and crew_id):
         print("⚠️ Invalid update data:", data)
         return
 
-    conn = get_db_connection()
-    with conn.cursor() as cursor:
-        query = f"UPDATE Results SET {field} = %s WHERE Piece_ID = %s AND Crew_ID = %s"
-        cursor.execute(query, (value, piece_id, crew_id))
-        conn.commit()
-    conn.close()
+    # Derive tenant from Referer (e.g. "/eubc/..."). Optional fallback to data['club'].
+    club = _club_from_referer() or data.get('club')
+    if not club:
+        print("⚠️ Could not determine tenant (no Referer / club). Update skipped.")
+        return
 
+    # Bind DB work to the tenant
+    with tenant_context(current_app, club):
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    f"UPDATE Results SET {field} = %s WHERE Piece_ID = %s AND Crew_ID = %s",
+                    (value, piece_id, crew_id)
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    # Fan out to all clients
     emit('result_updated', data, broadcast=True)
+
 
 

@@ -40,6 +40,7 @@
         <h3 style="margin: 0;">Published</h3>
       {% else %}
         <form method="POST" action="{{ url_for('lineups.publish_lineup', outing_id=outing.Outing_ID) }}" style="display: inline;">
+          <input type="hidden" name="gender" value="{{ gender_filter }}">
           <button class="btn" type="submit">📢 Publish</button>
         </form>
         <button class="btn" onclick="openCloneModal()">📋 Clone</button>
@@ -141,6 +142,7 @@
     <div class="crew-column crew-add">
       <form action="{{ url_for('lineups.add_crew', outing_id=outing_id) }}" method="post">
         <div class="crew-row">
+          <input type="hidden" name="gender" value="{{ gender_filter }}">
           <input list="hull-options" name="Hull_Name" placeholder="Hull Name" required>
           <datalist id="hull-options">
             {% for hull in available_hulls %}
@@ -325,7 +327,10 @@
     <div style="background:white; width:400px; margin:100px auto; padding:20px; border-radius:6px;">
       <h3>Clone a Previous Lineup</h3>
       <p style="color: red; font-weight: bold;">⚠️ This will delete all current crews and seat assignments.</p>
-      <form id="cloneForm" method="POST" action="{{ url_for('lineups.clone_lineup', outing_id=outing.Outing_ID) }}" onsubmit="return confirmClone()">
+      <form id="cloneForm" method="POST"
+            action="{{ url_for('lineups.clone_lineup', outing_id=outing.Outing_ID) }}"
+            onsubmit="return confirmClone()">
+        <input type="hidden" name="gender" value="{{ gender_filter }}">
         <select name="source_outing_id" required style="width:100%; margin-bottom: 10px;">
           {% for recent in recent_outings %}
             {% if recent.Outing_ID != outing.Outing_ID %}
