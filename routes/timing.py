@@ -5,10 +5,11 @@ from datetime import timedelta
 from flask_socketio import SocketIO, emit
 from sockets import socketio
 from urllib.parse import urlparse
+from typing import Optional 
 
 timing_bp = Blueprint('timing', __name__)
 
-def _club_from_referer() -> str | None:
+def _club_from_referer() -> Optional[str]:   # <-- change return type
     ref = request.headers.get("Referer", "")
     try:
         path = urlparse(ref).path  # e.g. "/eubc/timing/511"
