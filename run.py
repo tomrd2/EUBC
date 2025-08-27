@@ -143,6 +143,22 @@ def privacy():
 # ---------------------------
 core_bp = Blueprint('core', __name__)
 
+@core_bp.route('/')   # handles "/<club>/" 
+def club_root():
+    # If logged in, go straight to the menu; otherwise go to login
+    if current_user.is_authenticated:
+        return redirect(url_for('core.app_menu'))
+    return redirect(url_for('core.login'))
+
+@app.route('/<club>')   # handles "/eubc" (no trailing slash)
+def club_shortcut(club):
+    # validate tenant key; if unknown, 404
+    club = (club or '').strip().lower()
+    if club not in app.config.get('TENANTS', {}):
+        abort(404, description="Unknown club")
+    # send to that club's login
+    return redirect(url_for('core.login', club=club))
+
 @core_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
