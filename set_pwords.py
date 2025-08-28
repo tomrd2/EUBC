@@ -4,8 +4,8 @@ from werkzeug.security import generate_password_hash
 # DB config
 db_config = {
     'host': 'eubcdb-2.cp6ymm2sk6ub.eu-west-2.rds.amazonaws.com',
-    'user': 'eubc_app',
-    'password': 'bX3bhbU6knI3Tin',
+    'user': 'sabc_app',
+    'password': '36iiwqPtREsEJen',
     'database': 'eubcdb',
     'cursorclass': pymysql.cursors.DictCursor
 }
@@ -22,7 +22,7 @@ def set_default_passwords():
             initials = athlete['Initials']
 
             # You can choose your default password pattern here
-            default_password = f"{initials.lower()}_eubc"  # e.g., "jd_123"
+            default_password = f"{initials.lower()}_sabc"  # e.g., "jd_123"
             hashed = generate_password_hash(default_password)
 
             # Update database with the hashed password

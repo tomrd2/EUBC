@@ -30,6 +30,7 @@ sabc:
   mail:
     smtp_host: email-smtp.eu-west-2.amazonaws.com
     smtp_port: 587
+    #IAM user name: ses-smtp-user.20250822-143817
     smtp_user: "AKIA4RKKHDF6VPKCGZOZ"
     smtp_pass: "BF3/0a3IQ66SbE9AIhxpNwL/jhqAlY/rcGONy6GEGeP6"
     from_email: "no-reply@crewoptic.com"

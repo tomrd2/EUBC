@@ -1,73 +1,160 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>EUBC Data App</title>
+  <meta charset="utf-8" />
+  <title>CrewOptic</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <link rel="stylesheet" href="{{ url_for('club_static', filename='style.css') }}">
+
   <style>
+    :root{
+      --ink: #0b1220;
+      --brand: #001f3f;
+      --card-bg: rgba(0, 0, 0, 0.55);
+      --card-border: rgba(255,255,255,.15);
+    }
+
+    /* Page background */
     body {
       margin: 0;
-      padding: 0;
       font-family: Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
       background-image: url('{{ url_for("club_static", filename="background.jpg") }}');
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
     }
 
-    .menu-container {
-      margin-top: 80px;
+    /* Centering wrapper */
+    .auth-wrap {
+      flex: 1;
       display: flex;
-      flex-direction: column;
       align-items: center;
-      gap: 20px;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    /* Login card */
+    .auth-card {
       width: 100%;
+      max-width: 420px;
+      background: var(--card-bg);
+      color: #fff;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      backdrop-filter: blur(3px);
     }
 
-    .menu-container a {
-      display: block;
-      width: 250px;
-      padding: 15px;
-      font-size: 18px;
-      text-align: center;
-      background-color: rgba(0, 31, 63, 0.85); /* EUBC navy with transparency */
-      color: white;
-      text-decoration: none;
+    .auth-card h1 {
+      font-size: 22px;
+      margin: 0 0 14px;
+      font-weight: 700;
+    }
+
+    .auth-card p.sub {
+      margin: 0 0 16px;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+
+    /* Form layout */
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;           /* spacing between fields on mobile */
+    }
+
+    .auth-form label {
+      font-size: 14px;
+      margin-bottom: -6px; /* pulls label closer to its input while keeping gap */
+      opacity: .9;
+    }
+
+    .auth-input {
+      width: 100%;
+      padding: 14px 12px;  /* big tap target */
+      font-size: 16px;     /* >=16px prevents iOS zoom */
+      line-height: 1.2;
+      color: #0b1220;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .auth-input:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.25);
+    }
+
+    .auth-button {
+      margin-top: 4px;
+      width: 100%;
+      padding: 14px 12px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0, 31, 63, 0.95);
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .auth-button:hover {
+      background: #002a66;
+    }
+
+    /* Flash messages */
+    .flash {
+      padding: 10px 12px;
       border-radius: 8px;
-      transition: background-color 0.3s;
+      margin: 0 0 12px 0;
+      font-size: 14px;
     }
+    .flash.error { background:#ffe5e5; color:#7f1d1d; }
+    .flash.success { background:#e8fff0; color:#065f46; }
 
-    .menu-container a:hover {
-      background-color: rgba(0, 31, 63, 1);
+    /* Slightly tighter on very small phones, slightly roomier on tablets/desktop */
+    @media (max-width: 380px) {
+      .auth-card { padding: 16px; }
+      .auth-form { gap: 10px; }
     }
-
-    .flash.error { background:#ffe5e5; color:#a40000; padding:8px 12px; border-radius:6px; margin-bottom:12px; }
-    .flash.success { background:#e8fff0; color:#065f46; padding:8px 12px; border-radius:6px; margin-bottom:12px; }
+    @media (min-width: 640px) {
+      .auth-card { padding: 24px; }
+      .auth-form { gap: 14px; }
+    }
   </style>
 </head>
 <body>
   {% include "_header.html" %}
 
-  {% with messages = get_flashed_messages(category_filter=['login_error']) %}
-    {% if messages %}
-      {% for msg in messages %}
-        <div class="flash error">{{ msg }}</div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h1>Sign in</h1>
+      <p class="sub">Welcome back to CrewOptic</p>
 
-  <div class="menu-container">
-    <form action="{{ url_for('core.login') }}" method="post">
-      <input type="email" name="email" placeholder="Email" required><br>
-      <input type="password" name="password" placeholder="Password" required><br>
-      <button type="submit">Login</button>
-    </form>
+      {% with messages = get_flashed_messages(category_filter=['login_error','success']) %}
+        {% if messages %}
+          {% for msg in messages %}
+            <div class="flash {{ 'error' if 'Invalid' in msg else 'success' }}">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
 
+      <form class="auth-form" action="{{ url_for('core.login') }}" method="post" novalidate>
+        <label for="email">Email</label>
+        <input class="auth-input" id="email" type="email" name="email" placeholder="you@example.com" autocomplete="username" required>
+
+        <label for="password">Password</label>
+        <input class="auth-input" id="password" type="password" name="password" placeholder="Your password" autocomplete="current-password" required>
+
+        <button class="auth-button" type="submit">Login</button>
+      </form>
+    </div>
   </div>
-
 </body>
 </html>
-

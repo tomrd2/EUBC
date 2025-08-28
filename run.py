@@ -129,7 +129,8 @@ def landing():
             "key": key,
             "name": display,
             "logo_url": url_for("club_static", club=key, filename=logo),
-            "login_url": url_for("core.login", club=key),
+            # point to menu; unauthenticated users will be redirected to login
+            "login_url": url_for("core.app_menu", club=key),
         })
     return render_template("landing.html", clubs=clubs)
 
