@@ -1,4 +1,4 @@
-from flask import Blueprint, Flask, render_template, request, redirect, url_for, session, flash
+from flask import Blueprint, Flask, render_template, request, redirect, url_for, session, flash, current_app
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import os, secrets, string, smtplib, ssl
@@ -8,6 +8,7 @@ from typing import Optional  # add this import
 
 import datetime
 import pymysql
+from pymysql import IntegrityError
 from db import get_db_connection
 
 athletes_bp = Blueprint('athletes', __name__)
@@ -64,25 +65,58 @@ def athletes():
     conn.close()
     return render_template('athletes.html', athletes=data)
 
+from pymysql.err import IntegrityError
+from flask import current_app, flash, redirect, url_for
+
+from pymysql.err import IntegrityError
+from flask import flash, redirect, url_for, current_app
+
 @athletes_bp.route('/add', methods=['POST'])
 @login_required
 def add_athlete():
     data = request.form
+
+    # Normalize inputs
+    full_name = data.get('Full_Name', '').strip()
+    initials  = data.get('Initials', '').strip().upper()
+    m_w       = data.get('M_W', '').strip()
+    side      = _none_if_empty(data.get('Side', '').strip())
+    joined    = _none_if_empty(data.get('Joined', '').strip())
+    email     = _none_if_empty(data.get('Email', '').strip())
     sculls_value = 1 if 'Sculls' in data else 0
-    cox_value = 1 if 'Cox' in data else 0
+    cox_value    = 1 if 'Cox' in data else 0
+
+    if not initials:
+        flash("Please enter initials.", "danger")
+        return redirect(url_for('athletes.athletes'))
 
     conn = get_db_connection()
-    with conn.cursor() as cursor:
-        cursor.execute("""
-            INSERT INTO Athletes (Full_Name, Initials, M_W, Side, Sculls, Cox, Joined, Email)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            data['Full_Name'], data['Initials'], data['M_W'],
-            data['Side'], sculls_value, cox_value, data['Joined'], data['Email']
-        ))
-        conn.commit()
-    conn.close()
-    return redirect(url_for('athletes.athletes'))
+    try:
+        with conn.cursor() as cursor:
+            # One-shot, race-safe insert: insert only if no row with same initials exists.
+            cursor.execute("""
+                INSERT INTO Athletes (Full_Name, Initials, M_W, Side, Sculls, Cox, Joined, Email)
+                SELECT %s, %s, %s, %s, %s, %s, %s, %s
+                FROM DUAL
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM Athletes WHERE Initials = %s
+                )
+            """, (full_name, initials, m_w, side, sculls_value, cox_value, joined, email, initials))
+
+            # rowcount == 1 -> inserted; rowcount == 0 -> duplicate
+            if cursor.rowcount == 1:
+                conn.commit()
+                flash("Athlete added.", "success")
+            else:
+                conn.rollback()
+                flash(f'Initials "{initials}" are already in use. Please choose unique initials.', "danger")
+                # optional: drive the UI to reopen the modal/focus the field
+                return redirect(url_for('athletes.athletes', error='dup_initials', initials=initials))
+
+        return redirect(url_for('athletes.athletes'))
+    finally:
+        conn.close()
+
 
 @athletes_bp.route('/edit/<int:athlete_id>', methods=['POST'])
 @login_required
@@ -138,8 +172,8 @@ def reset_password(athlete_id):
             # Generate + save new password (hashed)
             new_pw  = _generate_temp_password(12)
             hashed  = generate_password_hash(new_pw)
-            #cur.execute("UPDATE Athletes SET Password_Hash=%s WHERE Athlete_ID=%s", (hashed, athlete_id))
-            #conn.commit()
+            cur.execute("UPDATE Athletes SET Password_Hash=%s WHERE Athlete_ID=%s", (hashed, athlete_id))
+            conn.commit()
     finally:
         conn.close()
 

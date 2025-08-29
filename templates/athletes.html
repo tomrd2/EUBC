@@ -17,6 +17,8 @@
 </head>
 <body>
   {% include "_header.html" %}
+  {% include "_flashes.html" %}
+  {% block content %}{% endblock %}
 
   <h2>Add New Athlete</h2>
   <form action="{{ url_for('athletes.add_athlete') }}" method="post">

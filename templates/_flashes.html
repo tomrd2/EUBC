@@ -1,0 +1,16 @@
+{# templates/_flashes.html #}
+{% set mapping = {"error":"danger", "warning":"warning", "success":"success", "info":"info"} %}
+{% with messages = get_flashed_messages(with_categories=True) %}
+  {% if messages %}
+    <div id="flashes" class="container mt-2">
+      {% for category, message in messages %}
+        {# Map 'error' -> 'danger' so Bootstrap styles work #}
+        {% set cls = mapping.get(category, category) %}
+        <div class="alert alert-{{ cls }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
