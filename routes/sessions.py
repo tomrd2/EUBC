@@ -1,5 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, Response
+from flask import Blueprint, render_template, request, redirect, url_for, session, Response, jsonify, abort
 from flask_login import login_required, current_user
+from datetime import timedelta
 from db import get_db_connection
 from io import StringIO
 import csv
@@ -319,4 +320,84 @@ def assign_session():
 
     return redirect(url_for('sessions.sessions'))
 
+from flask import jsonify, abort, current_app
+from datetime import timedelta
 
+@sessions_bp.route('/sessions/<int:session_id>/zones', methods=['GET'], endpoint='session_zones')
+@login_required
+def session_zones(session_id):
+    current_app.logger.info(f"/sessions/{session_id}/zones hit")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            # Verify the session exists and you’re allowed to see it
+            cur.execute("SELECT Athlete_ID, Session_Date, Activity FROM Sessions WHERE Session_ID=%s", (session_id,))
+            sess = cur.fetchone()
+            if not sess:
+                current_app.logger.warning(f"session_zones: session {session_id} not found")
+                abort(404)
+            if not current_user.coach and sess['Athlete_ID'] != current_user.id:
+                current_app.logger.warning(f"session_zones: user {current_user.id} forbidden for session {session_id}")
+                abort(403)
+
+            # Pull zones; alias the spaced column name
+            cur.execute("""
+                SELECT
+                  Zone,
+                  Time_In_Zone,
+                  Activity_Factor,
+                  Zone_Factor,
+                  `T2 Minutes` AS T2_Minutes
+                FROM Zones
+                WHERE Session_ID=%s
+                ORDER BY Zone
+            """, (session_id,))
+            rows = cur.fetchall()
+
+        def to_seconds(val):
+            if isinstance(val, timedelta): return int(val.total_seconds())
+            if isinstance(val, str):
+                h, m, *rest = val.split(':')
+                s = int(rest[0]) if rest else 0
+                return int(h)*3600 + int(m)*60 + s
+            return 0
+
+        out = []
+        total_sec = 0
+        total_t2 = 0
+        for r in rows or []:
+            secs = to_seconds(r['Time_In_Zone'])
+            total_sec += secs
+            t2 = int(r.get('T2_Minutes') or 0)
+            total_t2 += t2
+            out.append({
+                "zone": r['Zone'],
+                "time_seconds": secs,
+                "time_hm": f"{secs//3600:02d}:{(secs%3600)//60:02d}",
+                "activity_factor": r.get('Activity_Factor'),
+                "zone_factor": r.get('Zone_Factor'),
+                "t2_minutes": t2,
+            })
+
+        return jsonify({
+            "session_id": session_id,
+            "session": {
+                "athlete_id": sess["Athlete_ID"],
+                "session_date": str(sess["Session_Date"]),
+                "activity": sess["Activity"],
+            },
+            "rows": out,
+            "totals": {
+                "time_seconds": total_sec,
+                "time_hm": f"{total_sec//3600:02d}:{(total_sec%3600)//60:02d}",
+                "t2_minutes": total_t2,
+            }
+        })
+    finally:
+        conn.close()
+
+@sessions_bp.route('/__routes__')
+def __routes__():
+    from flask import current_app
+    return "<pre>" + "\n".join(sorted(str(r) for r in current_app.url_map.iter_rules())) + "</pre>"

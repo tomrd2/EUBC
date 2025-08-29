@@ -4,6 +4,12 @@
   <title>Training Sessions</title>
   <link rel="stylesheet" href="{{ url_for('club_static', filename='style.css') }}">
 </head>
+<style>
+  /* Only affects the zones modal as a fallback */
+  #zonesModal:not(.show) { display: none; }
+  #zonesModal.inline-open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 9999; }
+  #zonesModal.inline-open .modal-dialog { margin: 6rem auto; max-width: 900px; }
+</style>
 <body>
   {% include "_header.html" %}
 
@@ -79,7 +85,12 @@
         <td>
           <a href="{{ url_for('sessions.edit_session', session_id=s.Session_ID) }}">Edit</a>
           <a href="#" onclick="openAssignModal({{ s.Session_ID }})">Assign</a>
-        </td>
+          <a href="#"
+            class="zones-link"
+            data-zones-url="{{ url_for('sessions.session_zones', session_id=s.Session_ID, format='json') }}"
+            data-session-title="{{ s.Session_Date }} — {{ s.Activity }} — {{ s.Full_Name }}">
+            Zones
+          </a>
         {% endif %}
       </tr>
       {% endfor %}
@@ -182,6 +193,164 @@
   function closeAssignModal() {
     document.getElementById('assignModal').style.display = 'none';
   }
+</script>
+
+{# --- Modal skeleton --- #}
+<div class="modal fade" id="zonesModal" tabindex="-1" aria-labelledby="zonesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="zonesModalLabel">HR Zones</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closeZonesModal()"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="zones-loading" class="small text-muted">Loading…</div>
+        <div id="zones-error" class="alert alert-danger d-none"></div>
+
+        <div id="zones-empty" class="d-none">
+          <em>No HR zones recorded for this session.</em>
+        </div>
+
+        <div id="zones-table-wrap" class="table-responsive d-none">
+          <table class="table table-sm table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Zone</th>
+                <th>Time in Zone</th>
+                <th>Activity&nbsp;Factor</th>
+                <th>Zone&nbsp;Factor</th>
+                <th>T2 Minutes</th>
+              </tr>
+            </thead>
+            <tbody id="zones-tbody"></tbody>
+            <tfoot>
+              <tr class="fw-bold">
+                <td>Totals</td>
+                <td id="zones-total-time">00:00</td>
+                <td></td>
+                <td></td>
+                <td id="zones-total-t2">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="closeZonesModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# --- Script to fetch + render zones --- #}
+<script>
+(function() {
+  const modalEl   = document.getElementById('zonesModal');
+  const titleEl   = document.getElementById('zonesModalLabel');
+  const loadingEl = document.getElementById('zones-loading');
+  const errorEl   = document.getElementById('zones-error');
+  const emptyEl   = document.getElementById('zones-empty');
+  const tableWrap = document.getElementById('zones-table-wrap');
+  const tbodyEl   = document.getElementById('zones-tbody');
+  const totalTimeEl = document.getElementById('zones-total-time');
+  const totalT2El   = document.getElementById('zones-total-t2');
+
+  function hhmm(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+
+  async function openZones(zonesUrl, sessionTitle) {   // << accept a URL, not an ID
+    // Reset UI
+    titleEl.textContent = `HR Zones — ${sessionTitle}`;
+    loadingEl.classList.remove('d-none');
+    errorEl.classList.add('d-none'); errorEl.textContent = '';
+    emptyEl.classList.add('d-none');
+    tableWrap.classList.add('d-none');
+    tbodyEl.innerHTML = '';
+    totalTimeEl.textContent = '00:00';
+    totalT2El.textContent = '0';
+
+    // Show modal
+    if (window.bootstrap && bootstrap.Modal) {
+      const inst = (bootstrap.Modal.getOrCreateInstance
+                    ? bootstrap.Modal.getOrCreateInstance(modalEl)
+                    : new bootstrap.Modal(modalEl));
+      inst.show();
+    } else {
+      modalEl.style.removeProperty('display');   // <-- clear leftover inline 'none'
+      modalEl.classList.add('inline-open');      // show via class
+    }
+
+    try {
+      const resp = await fetch(zonesUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }); // << use URL directly
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      loadingEl.classList.add('d-none');
+
+      if (!data.rows || data.rows.length === 0) {
+        emptyEl.classList.remove('d-none');
+        return;
+      }
+
+      let totalSeconds = 0;
+      let totalT2 = 0;
+
+      data.rows.forEach(r => {
+        totalSeconds += (r.time_seconds || 0);
+        totalT2 += (r.t2_minutes || 0);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.zone}</td>
+          <td>${r.time_hm}</td>
+          <td>${r.activity_factor ?? ''}</td>
+          <td>${r.zone_factor ?? ''}</td>
+          <td>${r.t2_minutes ?? ''}</td>
+        `;
+        tbodyEl.appendChild(tr);
+      });
+
+      totalTimeEl.textContent = hhmm(totalSeconds);
+      totalT2El.textContent = String(totalT2);
+      tableWrap.classList.remove('d-none');
+
+    } catch (err) {
+      loadingEl.classList.add('d-none');
+      errorEl.textContent = 'Failed to load zones. Please try again.';
+      errorEl.classList.remove('d-none');
+      console.error('Zones load failed', err);
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    const link = e.target.closest('.zones-link');
+    if (!link) return;
+    e.preventDefault();
+    const url = link.getAttribute('data-zones-url');  // built by url_for()
+    const title = link.getAttribute('data-session-title') || 'HR Zones';
+    openZones(url, title);                            // pass URL through
+  });
+})();
+
+  function closeZonesModal() {
+    const modalEl = document.getElementById('zonesModal');
+    if (window.bootstrap && bootstrap.Modal) {
+      const inst = (bootstrap.Modal.getInstance && bootstrap.Modal.getInstance(modalEl))
+                || (bootstrap.Modal.getOrCreateInstance
+                    ? bootstrap.Modal.getOrCreateInstance(modalEl)
+                    : new bootstrap.Modal(modalEl));
+      inst.hide();
+    } else {
+      modalEl.classList.remove('inline-open');   // hide via class
+      modalEl.style.removeProperty('display');   // ensure no inline 'none' lingers
+    }
+  }
+
 </script>
 
 </body>
