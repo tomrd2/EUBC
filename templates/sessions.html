@@ -9,6 +9,10 @@
   #zonesModal:not(.show) { display: none; }
   #zonesModal.inline-open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 9999; }
   #zonesModal.inline-open .modal-dialog { margin: 6rem auto; max-width: 900px; }
+  #zonesModal .zones-table th,
+  #zonesModal .zones-table td {
+    text-align: center;
+  }
 </style>
 <body>
   {% include "_header.html" %}
@@ -213,7 +217,7 @@
         </div>
 
         <div id="zones-table-wrap" class="table-responsive d-none">
-          <table class="table table-sm table-striped align-middle">
+          <table class="table table-sm table-striped align-middle zones-table">
             <thead>
               <tr>
                 <th>Zone</th>

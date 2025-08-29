@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request
 from flask_login import login_required, current_user
 from db import get_db_connection
-from datetime import datetime, date, timedelta, time
+from datetime import datetime, date, timedelta, time as dt_time
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -19,16 +19,17 @@ def athlete_dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Get athletes
-    cursor.execute("SELECT Athlete_ID, Full_Name FROM Athletes WHERE (Coach != 1 OR Coach IS NULL) AND Side != 'Cox' ORDER BY Full_Name")
+    # Get athletes (non-coaches, non-coxes)
+    cursor.execute("""
+        SELECT Athlete_ID, Full_Name
+        FROM Athletes
+        WHERE (Coach != 1 OR Coach IS NULL) AND Side != 'Cox'
+        ORDER BY Full_Name
+    """)
     athletes = cursor.fetchall()
 
-    if current_user.coach:
-        selected_athlete = request.args.get('athlete_id')
-    else:
-        selected_athlete =current_user.id
-    athlete_data = []
-    squad_data = []
+    selected_athlete = request.args.get('athlete_id') if current_user.coach else current_user.id
+
     recent_history = []
     chart_data = []
     test_chart_data = []
@@ -37,26 +38,53 @@ def athlete_dashboard():
     elo_history = []
 
     if selected_athlete:
-        selected_name = next((a['Full_Name'] for a in athletes if str(a['Athlete_ID']) == str(selected_athlete)), None)
-        # Athlete-specific data
+        selected_name = next(
+            (a['Full_Name'] for a in athletes if str(a['Athlete_ID']) == str(selected_athlete)),
+            None
+        )
+
+        # --- Athlete weekly zone minutes (Z1..Z5), fallback to Sessions.T2Minutes into Z1 when no Zones exist ---
         cursor.execute("""
-            SELECT YEARWEEK(Session_Date, 3) AS year_week,
-                   SUM(T2Minutes) AS total_minutes
-            FROM Sessions
-            WHERE Athlete_ID = %s
-            AND Session_Date >= CURDATE() - INTERVAL 12 WEEK
-            AND Session_Date <= CURDATE()
+            SELECT
+                YEARWEEK(s.Session_Date, 3) AS year_week,
+                -- Zone 1 takes all of Sessions.T2Minutes when a session has no zones
+                SUM(CASE WHEN hz.has_zones = 1 THEN COALESCE(z1.z_t2, 0) ELSE COALESCE(s.T2Minutes, 0) END) AS z1,
+                SUM(CASE WHEN hz.has_zones = 1 THEN COALESCE(z2.z_t2, 0) ELSE 0 END) AS z2,
+                SUM(CASE WHEN hz.has_zones = 1 THEN COALESCE(z3.z_t2, 0) ELSE 0 END) AS z3,
+                SUM(CASE WHEN hz.has_zones = 1 THEN COALESCE(z4.z_t2, 0) ELSE 0 END) AS z4,
+                SUM(CASE WHEN hz.has_zones = 1 THEN COALESCE(z5.z_t2, 0) ELSE 0 END) AS z5
+            FROM Sessions s
+            LEFT JOIN (SELECT Session_ID, 1 AS has_zones FROM Zones GROUP BY Session_ID) hz
+                   ON hz.Session_ID = s.Session_ID
+            LEFT JOIN (SELECT Session_ID, SUM(`T2 Minutes`) AS z_t2 FROM Zones WHERE Zone = 1 GROUP BY Session_ID) z1
+                   ON z1.Session_ID = s.Session_ID
+            LEFT JOIN (SELECT Session_ID, SUM(`T2 Minutes`) AS z_t2 FROM Zones WHERE Zone = 2 GROUP BY Session_ID) z2
+                   ON z2.Session_ID = s.Session_ID
+            LEFT JOIN (SELECT Session_ID, SUM(`T2 Minutes`) AS z_t2 FROM Zones WHERE Zone = 3 GROUP BY Session_ID) z3
+                   ON z3.Session_ID = s.Session_ID
+            LEFT JOIN (SELECT Session_ID, SUM(`T2 Minutes`) AS z_t2 FROM Zones WHERE Zone = 4 GROUP BY Session_ID) z4
+                   ON z4.Session_ID = s.Session_ID
+            LEFT JOIN (SELECT Session_ID, SUM(`T2 Minutes`) AS z_t2 FROM Zones WHERE Zone = 5 GROUP BY Session_ID) z5
+                   ON z5.Session_ID = s.Session_ID
+            WHERE s.Athlete_ID = %s
+              AND s.Session_Date >= CURDATE() - INTERVAL 12 WEEK
+              AND s.Session_Date <= CURDATE()
             GROUP BY year_week
             ORDER BY year_week ASC
         """, (selected_athlete,))
-        raw_athlete = cursor.fetchall()
+        raw_athlete_zones = cursor.fetchall()
 
-        athlete_data = {
-            int(row['year_week']): row['total_minutes']
-            for row in raw_athlete
+        athlete_zones_by_week = {
+            int(r['year_week']): {
+                'z1': int(r['z1'] or 0),
+                'z2': int(r['z2'] or 0),
+                'z3': int(r['z3'] or 0),
+                'z4': int(r['z4'] or 0),
+                'z5': int(r['z5'] or 0),
+            } for r in raw_athlete_zones
         }
 
-        # Squad average (excluding coxes and coaches)
+        # --- Squad average (your existing total-minutes logic) ---
         cursor.execute("""
             SELECT s.year_week, AVG(s.total) AS avg_minutes
             FROM (
@@ -73,55 +101,65 @@ def athlete_dashboard():
             ORDER BY s.year_week ASC
         """)
         raw_squad = cursor.fetchall()
+        squad_by_week = { int(r['year_week']): (r['avg_minutes'] or 0) for r in raw_squad }
 
-        squad_data = {
-            int(row['year_week']): {
-                'label': (yearweek_to_date(row['year_week']) - timedelta(days=7)).strftime('%b %d'),
-                'avg': row['avg_minutes']
-            }
-            for row in raw_squad  # rows with year_week and avg
-        }
+        # --- Build a continuous 12-week window (ISO Monday starts) ---
+        today = date.today()
+        this_monday = today - timedelta(days=today.weekday())   # Monday of this ISO week
+        weeks = []
+        for i in range(12):
+            wk_start = this_monday - timedelta(weeks=11 - i)
+            iso_year, iso_week, _ = wk_start.isocalendar()
+            year_week = iso_year * 100 + iso_week
+            label = wk_start.strftime('%b %d')
+            weeks.append((year_week, label))
 
+        # --- Assemble chart_data with zones + squad avg ---
         chart_data = []
-
-        for yw, data in squad_data.items():
+        for yw, label in weeks:
+            z = athlete_zones_by_week.get(yw, {'z1':0,'z2':0,'z3':0,'z4':0,'z5':0})
             chart_data.append({
-                'label': data['label'],
-                'avg': data['avg'],
-                'total': athlete_data.get(yw, 0)  # fallback to 0 if athlete missing
+                'label': label,
+                'avg': float(squad_by_week.get(yw, 0) or 0),
+                'z1': z['z1'], 'z2': z['z2'], 'z3': z['z3'], 'z4': z['z4'], 'z5': z['z5'],
             })
 
+        # --- Recent 30 days history (fixed param tuple) ---
         cursor.execute("""
             SELECT Date, T2Minutes, Fatigue, Fitness
             FROM History
             WHERE Athlete_ID = %s AND Date >= CURDATE() - INTERVAL 30 DAY
             ORDER BY Date
-        """, (selected_athlete))
+        """, (selected_athlete,))
         recent_history = cursor.fetchall()
-
         for row in recent_history:
             date_obj = row['Date']
             day_str = format_day_suffix(date_obj.day)
             row['FormattedDate'] = date_obj.strftime(f"%a {day_str}")
 
+        # --- Test sessions (chart) ---
         cursor.execute("""
-            SELECT Session_Date, Distance, Duration, Split, 2k_Equiv, Comment
+            SELECT Session_Date, Distance, Duration, Split, `2k_Equiv`, Comment
             FROM Sessions
             WHERE Athlete_ID = %s
-            AND Type = 'Test'
-            AND 2k_Equiv IS NOT NULL
+              AND Type = 'Test'
+              AND `2k_Equiv` IS NOT NULL
             ORDER BY Session_Date
         """, (selected_athlete,))
         test_sessions = cursor.fetchall()
 
         test_chart_data = []
-
         for row in test_sessions:
             date_obj = row['Session_Date']
             time_val = row['2k_Equiv']
 
-            if isinstance(time_val, time):
-                total_seconds = time_val.hour * 3600 + time_val.minute * 60 + time_val.second + time_val.microsecond / 1_000_000
+            if isinstance(time_val, dt_time):
+                total_seconds = (
+                    time_val.hour * 3600 +
+                    time_val.minute * 60 +
+                    time_val.second +
+                    time_val.microsecond / 1_000_000
+                )
             elif isinstance(time_val, timedelta):
                 total_seconds = time_val.total_seconds()
             else:
@@ -129,58 +167,51 @@ def athlete_dashboard():
 
             minutes = int(total_seconds // 60)
             seconds = total_seconds % 60
-            formatted = f"{minutes}:{seconds:04.1f}"  # e.g., 6:43.5
+            formatted = f"{minutes}:{seconds:04.1f}"
 
             test_chart_data.append({
                 'date': date_obj.strftime('%Y-%m-%d'),
                 'seconds': total_seconds,
                 'label': formatted
             })
-            cursor.execute("""
-                SELECT Session_Date, Distance, Duration, Split, `2k_Equiv`, Comment
-                FROM Sessions
-                WHERE Athlete_ID = %s
-                AND Type = 'Test'
-                ORDER BY Session_Date DESC
-            """, (selected_athlete,))
-            test_table_rows = cursor.fetchall()
 
-            formatted_table_rows = []
+        # --- Test sessions (table) ---
+        cursor.execute("""
+            SELECT Session_Date, Distance, Duration, Split, `2k_Equiv`, Comment
+            FROM Sessions
+            WHERE Athlete_ID = %s
+              AND Type = 'Test'
+            ORDER BY Session_Date DESC
+        """, (selected_athlete,))
+        test_table_rows = cursor.fetchall()
 
-            for row in test_table_rows:
-                duration = row['Duration']
-                split = row['Split']
-                equiv = row['2k_Equiv']
+        def format_td(td):
+            if not td:
+                return ''
+            total_seconds = int(td.total_seconds())
+            minutes = total_seconds // 60
+            seconds = total_seconds % 60
+            return f"{minutes}:{seconds:02}"
 
-                def format_td(td):
-                    if not td:
-                        return ''
-                    total_seconds = int(td.total_seconds())
-                    minutes = total_seconds // 60
-                    seconds = total_seconds % 60
-                    return f"{minutes}:{seconds:02}"
+        formatted_table_rows = []
+        for row in test_table_rows:
+            formatted_table_rows.append({
+                'Date': row['Session_Date'].strftime('%Y-%m-%d'),
+                'Distance': row['Distance'],
+                'Duration': format_td(row['Duration']),
+                'Split': format_td(row['Split']),
+                '2k_Equiv': format_td(row['2k_Equiv']),
+                'Comment': row['Comment'] or ''
+            })
 
-                formatted_row = {
-                    'Date': row['Session_Date'].strftime('%Y-%m-%d'),
-                    'Distance': row['Distance'],
-                    'Duration': format_td(duration),
-                    'Split': format_td(split),
-                    '2k_Equiv': format_td(equiv),
-                    'Comment': row['Comment'] or ''
-                }
-                formatted_table_rows.append(formatted_row)
-        # get full OTW‐ELO history for the selected athlete
-        cursor.execute(
-            """
-            SELECT Date      AS EloDate,
-                OTW_ELO   AS EloValue
-            FROM   History
-            WHERE  Athlete_ID = %s
-            ORDER  BY Date
-            """,
-            (selected_athlete,)          # or current_user.athlete_id if not coach-driven
-        )
-        elo_history = cursor.fetchall()     # list of rows with EloDate / EloValue
+        # --- OTW ELO history ---
+        cursor.execute("""
+            SELECT Date AS EloDate, OTW_ELO AS EloValue
+            FROM History
+            WHERE Athlete_ID = %s
+            ORDER BY Date
+        """, (selected_athlete,))
+        elo_history = cursor.fetchall()
 
     conn.close()
 
@@ -191,10 +222,10 @@ def athlete_dashboard():
         selected_athlete=selected_athlete,
         recent_history=recent_history,
         selected_name=selected_name,
-        chart_data = chart_data,
+        chart_data=chart_data,
         test_chart_data=test_chart_data,
         test_table_data=formatted_table_rows,
-        elo_history = elo_history
+        elo_history=elo_history
     )
 
 @dashboard_bp.route('/squad_dash')

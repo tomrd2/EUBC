@@ -69,6 +69,9 @@
         </script>
         {% endif %}
 
+        
+        {% if test_chart_data %}
+
         <div style="display: flex; justify-content: space-between; gap: 1px; margin-top: 20px;">
             <!-- Season Tests Chart -->
             <div style="flex: 1;">
@@ -152,6 +155,8 @@
 
         </div>
 
+        {% endif %}
+
         <!-- 📈 OTW-ELO Chart -->
         <div id="eloChart" style="margin-top:20px;"></div>
 
@@ -183,40 +188,44 @@
         
         <div id="chart" style="margin-top: 20px;"></div>
 
-        {% if chart_data %}
-        <script>
-            const labels = {{ chart_data | map(attribute='label') | list | tojson }};
-            const athleteTotals = {{ chart_data | map(attribute='total') | list | tojson }};
-            const squadAverages = {{ chart_data | map(attribute='avg') | list | tojson }};
+{% if chart_data %}
+<script>
+  const labels = {{ chart_data | map(attribute='label') | list | tojson }};
+  const z1 = {{ chart_data | map(attribute='z1') | list | tojson }};
+  const z2 = {{ chart_data | map(attribute='z2') | list | tojson }};
+  const z3 = {{ chart_data | map(attribute='z3') | list | tojson }};
+  const z4 = {{ chart_data | map(attribute='z4') | list | tojson }};
+  const z5 = {{ chart_data | map(attribute='z5') | list | tojson }};
+  const squadAverages = {{ chart_data | map(attribute='avg') | list | tojson }};
 
-        
-            Plotly.newPlot('chart', [
-                {
-                    x: labels,
-                    y: athleteTotals,
-                    type: 'bar',
-                    name: '{{ selected_name or "Selected Athlete" }}',
-                    marker: { color: 'rgb(0, 123, 255)' }
-                },
-                {
-                    x: labels,
-                    y: squadAverages,
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    name: 'Squad Average',
-                    line: { color: 'red' }
-                }
-            ], {
-                barmode: 'group',
-                title: 'Last 12 Weeks',
-                xaxis: { title: 'Week Starting' },
-                yaxis: { title: 'T2 Minutes' },
-                height: 350,
-                width: 1000
-            });
-        </script>
-        
-        {% endif %}
+  const traces = [
+    { x: labels, y: z1, type: 'bar', name: 'Zone 1' },
+    { x: labels, y: z2, type: 'bar', name: 'Zone 2' },
+    { x: labels, y: z3, type: 'bar', name: 'Zone 3' },
+    { x: labels, y: z4, type: 'bar', name: 'Zone 4' },
+    { x: labels, y: z5, type: 'bar', name: 'Zone 5' },
+    {
+      x: labels,
+      y: squadAverages,
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'Squad Average',
+      line: { width: 2 }
+    }
+  ];
+
+  Plotly.newPlot('chart', traces, {
+    barmode: 'stack',
+    title: 'Last 12 Weeks',
+    xaxis: { title: 'Week Starting' },
+    yaxis: { title: 'T2 Minutes' },
+    height: 350,
+    width: 1000,
+    legend: { orientation: 'h', x: 0, y: 1.15 }
+  });
+</script>
+{% endif %}
+
     </div>
 
 </body>
